@@ -16,6 +16,7 @@ public:
 	};
 
 	BoardState player;
+	const unsigned PIECES_FOR_WIN = 5;
 
 	Board(int w, int h, BoardState defval=BoardState(0))	{
 		state = vector<vector<BoardState>>(w,vector<BoardState>(h,defval));
@@ -32,7 +33,8 @@ public:
 	}
 
 	BoardState getState(int x, int y) {
-		return state[x][y];
+		if (x<0 || y<0 || x>state.size() || y> state[0].size()) return BoardState::NONE;
+		return state.at(x).at(y);
 	}
 
 	bool setState(BoardState s, int x, int y) {
@@ -77,6 +79,26 @@ public:
 		}
 		return ret;
 	}
+	bool checkEndgame(int x, int y) {
+		BoardState cur = state[x][y];
+		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
+		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
+		for (size_t i = 1; i < PIECES_FOR_WIN; i++){//px = ->; py = v
+			pxy  &= (getState(x + i,y    ) == cur);
+			pxpy &= (getState(x + i,y + i) == cur);
+			xpy  &= (getState(x    ,y + i) == cur);
+			mxpy &= (getState(x - i,y + i) == cur);
+			mxy  &= (getState(x - i,y    ) == cur);
+			mxmy &= (getState(x - i,y - i) == cur);
+			xmy  &= (getState(x    ,y - i) == cur);
+			pxmy &= (getState(x + i,y - i) == cur);
+			if (pxy || mxy) dx++;
+			if (xpy || xmy) dy++;
+			if (pxpy || mxmy) dxy++;
+			if (pxmy || mxpy) dmxy++;
+		}
+		return dx>= PIECES_FOR_WIN || dy>= PIECES_FOR_WIN || dxy>= PIECES_FOR_WIN || dmxy>= PIECES_FOR_WIN;
+	}
 //	/*does the best move*/
 //	void bot() {
 //		int x = rand() % (center.first * 2) - 1;
@@ -108,7 +130,7 @@ int main() {
 		try	{
 			a = stoi(tok1);
 			b = stoi(tok2);
-		} catch(const std::exception&) {
+		} catch(const exception&) {
 			if (in.compare("end") == 0) endgame = true;
 //			if (in.compare("bot") == 0) board.bot();//TODO:
 			printf("Error, please try again\n");
@@ -116,8 +138,14 @@ int main() {
 		}
 		int x = board.getCenter().first - ww / 2;
 		int y = board.getCenter().second - wh / 2;
-		if (x + a >= ww || y + b >= wh) { printf("Position %d %d does't exist\n",a,b); continue; }
+		if (x + a >= ww || y + b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
 		if (!board.setState(board.player, x + a, y + b)) { printf("Position already has a piece! Try again.\n"); continue; }
+		if (board.checkEndgame(x+a,y+b)) {
+			printf("Player %c wins!\n",board.s2c(board.player));
+			endgame = true;
+			cout << board.window(ww, wh);
+			break;
+		}
 		board.player = Board::BoardState((uint8_t)board.player % 2 + 1);
 		printf("Got position: %d %d\n",a,b);
 
