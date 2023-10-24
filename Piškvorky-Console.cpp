@@ -272,7 +272,7 @@ public:
 		//if no best move then random neighbor
 		for (size_t x = 0; x < state.size(); x++) {
 			for (size_t y = 0; y < state[0].size(); y++) {
-				if(hasNeighbor(x, y)&&getState(x,y)!=BoardState::NONE) {
+				if(hasNeighbor(x, y)&&getState(x,y)==BoardState::NONE) {
 					cs.push_back({ x,y });
 				}
 			}
