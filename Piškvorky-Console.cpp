@@ -11,15 +11,14 @@ using namespace std;
 
 class Board {
 public:
-
 	enum class BoardState {
-		NONE, X, O
+		NONE, X, O, BORDER
 	};
 
 	BoardState player;
 	const unsigned PIECES_FOR_WIN = 5;
 
-	Board(int w, int h, BoardState defval=BoardState(0))	{
+	Board(int w, int h, BoardState defval=BoardState(0)){
 		state = vector<vector<BoardState>>(w,vector<BoardState>(h,defval));
 		center = {w/2, h/2};
 		player = BoardState(1);
@@ -34,13 +33,14 @@ public:
 	}
 
 	BoardState getState(unsigned x, unsigned y) {
-		if (x<0 || y<0 || x>state.size()-1 || y> state[0].size()-1) return BoardState::NONE;
+		if (x<0 || y<0 || x>state.size()-1 || y> state[0].size()-1) return BoardState::BORDER;
 		return state[x][y];
 	}
 
 	bool isX(unsigned x, unsigned y) { return getState(x, y) == BoardState::X; }
 	bool isO(unsigned x, unsigned y) { return getState(x, y) == BoardState::O; }
 	bool isXO(unsigned x, unsigned y) { return getState(x, y) != BoardState::NONE; }
+
 	BoardState n(BoardState a) {
 		if (a == BoardState::NONE) throw exception();
 		return (a == BoardState::X) ? BoardState::O : BoardState::X;
@@ -138,7 +138,7 @@ public:
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		BoardState bpxy = cur, bpxpy = cur, bxpy = cur, bmxpy = cur, bmxy = cur, bmxmy = cur, bxmy = cur, bpxmy = cur;
 		signed dx = 1, dy = 1, dxy = 1, dmxy = 1, dmx = 1, dmy = 1, dxmy = 1, dmxmy = 1;
-		for (size_t i = 1; i <= 5; i++) {//px = ->; py = v
+		for (size_t i = 1; i <= 5; i++) {//px = v; py = ->
 			pxy  &= (getState(x + i, y    ) == cur);
 			pxpy &= (getState(x + i, y + i) == cur);
 			xpy  &= (getState(x    , y + i) == cur);
@@ -155,6 +155,16 @@ public:
 			if (!mxmy && bmxmy == cur) bmxmy = getState(x - i, y - i);
 			if (!xmy  && bxmy == cur)  bxmy  = getState(x    , y - i);
 			if (!pxmy && bpxmy == cur) bpxmy = getState(x + i, y - i);
+
+			if (!pxy && bpxy == BoardState::NONE) { bpxy = getState(x + i + 1, y);				  if (bpxy == BoardState::BORDER)bpxy = BoardState::NONE; };
+			if (!pxpy && bpxpy == BoardState::NONE) { bpxpy = getState(x + i + 1, y + i + 1);	  if (bpxpy == BoardState::BORDER)bpxpy = BoardState::NONE;};
+			if (!xpy && bxpy == BoardState::NONE) { bxpy = getState(x, y + i + 1);				  if (bxpy == BoardState::BORDER)bxpy = BoardState::NONE;};
+			if (!mxpy && bmxpy == BoardState::NONE) { bmxpy = getState(x - (i + 1), y + i + 1);   if (bmxpy == BoardState::BORDER)bmxpy = BoardState::NONE;};
+			if (!mxy && bmxy == BoardState::NONE) { bmxy = getState(x - (i + 1), y);			  if (bmxy == BoardState::BORDER)bmxy = BoardState::NONE;};
+			if (!mxmy && bmxmy == BoardState::NONE) { bmxmy = getState(x - (i + 1), y - (i + 1)); if (bmxmy == BoardState::BORDER)bmxmy = BoardState::NONE;};
+			if (!xmy && bxmy == BoardState::NONE) { bxmy = getState(x, y - (i + 1));			  if (bxmy == BoardState::BORDER)bxmy = BoardState::NONE;};
+			if (!pxmy && bpxmy == BoardState::NONE) { bpxmy = getState(x + i + 1, y - (i + 1));   if (bpxmy == BoardState::BORDER)bpxmy = BoardState::NONE;};
+
 			if (pxy) dx++;
 			if (mxy) dmx++;
 			if (xmy) dy++;
@@ -164,54 +174,54 @@ public:
 			if (pxmy) dmxy++;
 			if (mxpy) dmxmy++;
 		}
+
 		int mmax = max(max(dx+dmx,dy+dmy), max(dxy+dxmy,dmxy+dmxmy));
 		pair<BoardState, BoardState> ret = {cur,cur};
-		pair<int, int> retXY = { -1,-1 };
+		pair<int, int> retXY = { -2,-2 };
 		int bestb = 0;
 		if ((dx + dmx) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dx,y }; }
-			if (bmxy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmx,y }; }
+			if (bpxy == BoardState::NONE || bpxy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dx,y }; }
+			if (bmxy == BoardState::NONE || bmxy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmx,y }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dy + dmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x,y - dy }; }
-			if (bxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x,y + dmy }; }
+			if (bxmy == BoardState::NONE || bxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x,y - dy }; }
+			if (bxpy == BoardState::NONE || bxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x,y + dmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dxy + dxmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxpy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
-			if (bmxmy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
+			if (bpxpy == BoardState::NONE || bpxpy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
+			if (bmxmy == BoardState::NONE || bmxmy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dmxy + dmxmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dmxy,y - dmxy }; }
-			if (bmxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmxmy,y + dmxmy }; }
+			if (bpxmy == BoardState::NONE || bpxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dmxy, y - dmxy }; }
+			if (bmxpy == BoardState::NONE || bmxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmxmy, y + dmxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		bool move = false;
 		//mmax value is always one more than the actual stone count
 		if (mmax == 5 && bestb >= 1) {
 			move = true;
-		} else if (mmax==4 && bestb == 2) {//wrong if .XXX.X
+		} else if (mmax==4 && bestb == 2) {// .XXX.X is fixed but .XXX..X is false-positive
 			move = true;
-		} else if (offense && mmax == 3) {
+		} else if (offense && mmax == 3 && bestb>=1) {
 			move = true;
 		}
 
 		return { move,retXY };
-
 	}
 
 	signed evalBoard() {
@@ -236,6 +246,15 @@ public:
 		}
 		return false;
 	}
+	bool hasNeighbor(int x, int y, BoardState s) {
+		if (getState(x - 1, y) == s || getState(x + 1, y) == s ||
+			getState(x, y - 1) == s || getState(x, y + 1) == s ||
+			getState(x - 1, y + 1) == s || getState(x + 1, y + 1) == s ||
+			getState(x - 1, y - 1) == s || getState(x + 1, y - 1) == s) {
+			return true;
+		}
+		return false;
+	}
 
 	bool checkX(int x, int y, unsigned a) {return evalPoint(x, y) >= a;}
 	bool checkEndgame(int x, int y) {return evalPoint(x, y) >= PIECES_FOR_WIN;}
@@ -251,7 +270,7 @@ public:
 		}
 		//defend if neccessary
 		for (pair<int,int> c : cs){
-			auto tmp = evalLineBlocked(c.first, c.second,false);
+			auto tmp = evalLineBlocked(c.first, c.second, false);
 			if (tmp.first) { return tmp; }
 		}
 		cs.clear();
@@ -269,10 +288,10 @@ public:
 		}
 		cs.clear();
 
-		//if no best move then random neighbor
+		//if no best move then random players neighbor
 		for (size_t x = 0; x < state.size(); x++) {
 			for (size_t y = 0; y < state[0].size(); y++) {
-				if(hasNeighbor(x, y)&&getState(x,y)==BoardState::NONE) {
+				if(hasNeighbor(x, y, player)&&getState(x,y)==BoardState::NONE) {
 					cs.push_back({ x,y });
 				}
 			}
@@ -281,6 +300,7 @@ public:
 			int i = rand() % cs.size();
 			return { true,cs.at(i) };
 		}
+		printf("I don't know what to do! Please help.\n");
 		//TODO:opening
 		return { false, {7, 7} };
 	}
