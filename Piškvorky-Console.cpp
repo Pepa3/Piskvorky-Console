@@ -32,7 +32,7 @@ public:
 		player.~BoardState();
 	}
 
-	BoardState getState(int x, int y) {
+	BoardState getState(unsigned x, unsigned y) {
 		if (x<0 || y<0 || x>state.size() || y> state[0].size()) return BoardState::NONE;
 		return state.at(x).at(y);
 	}
@@ -104,6 +104,17 @@ public:
 		}
 		return max(max(dx,dy), max(dxy, dmxy));
 	}
+	//Black(X) = + ; White(O) = -
+	signed evalPoint1(int x, int y) {
+		switch (getState(x,y)){
+		case BoardState::NONE:
+			return 0;
+		case BoardState::X:
+			return evalPoint(x, y);
+		case BoardState::O:
+			return -(signed)evalPoint(x, y);
+		}
+	}
 
 	bool checkEndgame(int x, int y) {
 		return evalPoint(x,y)>=PIECES_FOR_WIN;
@@ -121,7 +132,7 @@ private:
 };
 
 int main() {
-	srand(time(NULL));
+	srand((unsigned)time(NULL));
 	Board board = Board();
 	int ww = 15, wh = 15;
 
