@@ -33,7 +33,7 @@ public:
 	}
 
 	BoardState getState(unsigned x, unsigned y) {
-		if (x<0 || y<0 || x>state.size() || y> state[0].size()) return BoardState::NONE;
+		if (x<0 || y<0 || x>state.size()-1 || y> state[0].size()-1) return BoardState::NONE;
 		return state.at(x).at(y);
 	}
 
@@ -159,7 +159,7 @@ int main() {
 		int x = board.getCenter().first - ww / 2;
 		int y = board.getCenter().second - wh / 2;
 		if (x + a >= ww || y + b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
-		if (!board.setState(board.player, x + a, y + b)) { printf("Position already has a piece! Try again.\n"); continue; }
+		if (!board.setState(board.player, x + a, y + b)) { printf("Position already has a piece! Point score: %d.\n", board.evalPoint1(x + a, y + b)); continue; }
 		if (board.checkEndgame(x+a,y+b)) {
 			printf("Player %c wins!\n",board.s2c(board.player));
 			endgame = true;
