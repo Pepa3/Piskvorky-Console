@@ -133,7 +133,7 @@ public:
 		. . O . . .
 		. . ? . . .
 	*/
-	pair<unsigned,pair<BoardState,BoardState>> evalLineBlocked(int x, int y) {
+	pair<bool,pair<int,int>> evalLineBlocked(int x, int y, bool offense) {
 		BoardState cur = getState(x, y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		BoardState bpxy = cur, bpxpy = cur, bxpy = cur, bmxpy = cur, bmxy = cur, bmxmy = cur, bxmy = cur, bpxmy = cur;
@@ -166,40 +166,51 @@ public:
 		}
 		int mmax = max(max(dx+dmx,dy+dmy), max(dxy+dxmy,dmxy+dmxmy));
 		pair<BoardState, BoardState> ret = {cur,cur};
+		pair<int, int> retXY = { -1,-1 };
 		int bestb = 0;
 		if ((dx + dmx) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
+			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxy==BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; }
-			if (bmxy==BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; }
-			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; }
+			if (bpxy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dx,y }; }
+			if (bmxy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmx,y }; }
+			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dy + dmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
+			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; }
-			if (bxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; }
-			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; }
+			if (bxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x,y - dy }; }
+			if (bxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x,y + dmy }; }
+			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dxy + dxmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
+			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxpy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; }
-			if (bmxmy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; }
-			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; }
+			if (bpxpy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
+			if (bmxmy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
+			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dmxy + dmxmy) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
+			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
-			if (bpxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; }
-			if (bmxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; }
-			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; }
-			printf("/:%d %c %c\n", bestb2, s2c(ret2.first), s2c(ret2.second));
+			if (bpxmy == BoardState::NONE) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dmxy,y - dmxy }; }
+			if (bmxpy == BoardState::NONE) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmxmy,y + dmxmy }; }
+			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
+		}
+		bool move = false;
+		//mmax value is always one more than the actual stone count
+		if (mmax == 5 && bestb >= 1) {
+			move = true;
+		} else if (mmax==4 && bestb == 2) {//wrong if .XXX.X
+			move = true;
+		} else if (offense && mmax == 3) {
+			move = true;
 		}
 
-
-
-		return { bestb,ret };
+		return { move,retXY };
 
 	}
 
@@ -226,27 +237,54 @@ public:
 		return false;
 	}
 
-	bool checkX(int x, int y, int a) {return evalPoint(x, y) >= a;}
+	bool checkX(int x, int y, unsigned a) {return evalPoint(x, y) >= a;}
 	bool checkEndgame(int x, int y) {return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
-	pair<signed, pair<int, int>> bot() {
-		pair<signed, pair<int, int>> ret = { 0, {-1, -1} };
-		vector<pair<int, int>> c4 = vector<pair<int, int>>();
+	pair<bool,pair<int, int>> bot() {
+		vector<pair<int, int>> cs = vector<pair<int, int>>();
+		//-------Defensive Moves-------
+		//Check only interesting stones
 		for (size_t x = 0; x < state.size(); x++){
 			for (size_t y = 0; y < state[0].size(); y++){
-				if (getState(x, y) == BoardState::NONE) continue;
-				if (checkX(x, y, 4)) c4.push_back({x,y});
+				if (getState(x, y) == n(player)) cs.push_back({x,y});
 			}
 		}
-		for (pair<int,int> c : c4){
-			//Našli jsme 4 kameny stejné barvy za sebou, jsou zablokované z obou stran?
-			evalLineBlocked(c.first, c.second);
+		//defend if neccessary
+		for (pair<int,int> c : cs){
+			auto tmp = evalLineBlocked(c.first, c.second,false);
+			if (tmp.first) { return tmp; }
 		}
+		cs.clear();
+		//-------Offensive Moves-------
+		//Check only interesting stones
+		for (size_t x = 0; x < state.size(); x++) {
+			for (size_t y = 0; y < state[0].size(); y++) {
+				if (getState(x, y) == player) cs.push_back({ x,y });
+			}
+		}
+		//find the best move
+		for (pair<int, int> c : cs) {
+			auto tmp = evalLineBlocked(c.first, c.second,true);
+			if (tmp.first) { return tmp; }
+		}
+		cs.clear();
 
-		return ret;
+		//if no best move then random neighbor
+		for (size_t x = 0; x < state.size(); x++) {
+			for (size_t y = 0; y < state[0].size(); y++) {
+				if(hasNeighbor(x, y)&&getState(x,y)!=BoardState::NONE) {
+					cs.push_back({ x,y });
+				}
+			}
+		}
+		if (cs.size() >= 2) {
+			int i = rand() % cs.size();
+			return { true,cs.at(i) };
+		}
+		//TODO:opening
+		return { false, {7, 7} };
 	}
 	
-
 private:
 	vector<vector<BoardState>> state;
 	pair<int, int> center;
@@ -272,11 +310,13 @@ int main() {
 		try	{
 			a = stoi(tok1);
 			b = stoi(tok2);
-		} catch(const exception&) {
-			if (in.compare("end") == 0) endgame = true;
+		}
+		catch (const exception&) {
+			if (in.compare("end") == 0) { endgame = true; continue; }
 			if (in.compare("bot") == 0) {
-				pair<signed,pair<int, int>> result = board.bot();
-				printf("minmax X%d Y%d\n",result.second.first,result.second.second);
+				pair<bool,pair<int, int>> result = board.bot();
+				if(result.first)printf("Bot X%d Y%d\n",result.second.first,result.second.second);
+				continue;
 			}
 			/*if (in.compare("time") == 0) {
 				auto t1 = chrono::high_resolution_clock::now();
@@ -291,8 +331,9 @@ int main() {
 		int y = board.getCenter().second - wh / 2;
 		if (x + a >= ww || y + b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
 		if (!board.setState(board.player, x + a, y + b)) {
-			auto tmp = board.evalLineBlocked(x + a, y + b);
-			printf("Position already has a piece! (%d),(%c),(%c).\n", tmp.first,board.s2c(tmp.second.first),board.s2c(tmp.second.second));
+			auto tmp = board.evalLineBlocked(x + a, y + b,false);
+			if (tmp.first) printf("Line output: %d %d\n", tmp.second.first, tmp.second.second);
+			printf("Position already has a piece!\n");
 			continue;
 		}
 		if (board.checkEndgame(x+a,y+b)) {
