@@ -79,25 +79,34 @@ public:
 		}
 		return ret;
 	}
-	bool checkEndgame(int x, int y) {
-		BoardState cur = state[x][y];
+
+	unsigned evalPoint(int x, int y) {
+		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
-		for (size_t i = 1; i < PIECES_FOR_WIN; i++){//px = ->; py = v
-			pxy  &= (getState(x + i,y    ) == cur);
-			pxpy &= (getState(x + i,y + i) == cur);
-			xpy  &= (getState(x    ,y + i) == cur);
-			mxpy &= (getState(x - i,y + i) == cur);
-			mxy  &= (getState(x - i,y    ) == cur);
-			mxmy &= (getState(x - i,y - i) == cur);
-			xmy  &= (getState(x    ,y - i) == cur);
-			pxmy &= (getState(x + i,y - i) == cur);
-			if (pxy || mxy) dx++;
-			if (xpy || xmy) dy++;
-			if (pxpy || mxmy) dxy++;
-			if (pxmy || mxpy) dmxy++;
+		for (size_t i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			pxy &= (getState(x + i, y) == cur);
+			pxpy &= (getState(x + i, y + i) == cur);
+			xpy &= (getState(x, y + i) == cur);
+			mxpy &= (getState(x - i, y + i) == cur);
+			mxy &= (getState(x - i, y) == cur);
+			mxmy &= (getState(x - i, y - i) == cur);
+			xmy &= (getState(x, y - i) == cur);
+			pxmy &= (getState(x + i, y - i) == cur);
+			if (pxy) dx++;
+			if (mxy) dx++;
+			if (xmy) dy++;
+			if (xpy) dy++;
+			if (pxpy) dxy++;
+			if (mxmy) dxy++;
+			if (pxmy) dmxy++;
+			if (mxpy) dmxy++;
 		}
-		return dx>= PIECES_FOR_WIN || dy>= PIECES_FOR_WIN || dxy>= PIECES_FOR_WIN || dmxy>= PIECES_FOR_WIN;
+		return max(max(dx,dy), max(dxy, dmxy));
+	}
+
+	bool checkEndgame(int x, int y) {
+		return evalPoint(x,y)>=PIECES_FOR_WIN;
 	}
 //	/*does the best move*/
 //	void bot() {
