@@ -156,14 +156,14 @@ public:
 			if (!xmy  && bxmy == cur)  bxmy  = getState(x    , y - i);
 			if (!pxmy && bpxmy == cur) bpxmy = getState(x + i, y - i);
 
-			if (!pxy && bpxy == BoardState::NONE) { bpxy = getState(x + i + 1, y);				  if (bpxy == BoardState::BORDER)bpxy = BoardState::NONE; };
-			if (!pxpy && bpxpy == BoardState::NONE) { bpxpy = getState(x + i + 1, y + i + 1);	  if (bpxpy == BoardState::BORDER)bpxpy = BoardState::NONE;};
-			if (!xpy && bxpy == BoardState::NONE) { bxpy = getState(x, y + i + 1);				  if (bxpy == BoardState::BORDER)bxpy = BoardState::NONE;};
-			if (!mxpy && bmxpy == BoardState::NONE) { bmxpy = getState(x - (i + 1), y + i + 1);   if (bmxpy == BoardState::BORDER)bmxpy = BoardState::NONE;};
-			if (!mxy && bmxy == BoardState::NONE) { bmxy = getState(x - (i + 1), y);			  if (bmxy == BoardState::BORDER)bmxy = BoardState::NONE;};
-			if (!mxmy && bmxmy == BoardState::NONE) { bmxmy = getState(x - (i + 1), y - (i + 1)); if (bmxmy == BoardState::BORDER)bmxmy = BoardState::NONE;};
-			if (!xmy && bxmy == BoardState::NONE) { bxmy = getState(x, y - (i + 1));			  if (bxmy == BoardState::BORDER)bxmy = BoardState::NONE;};
-			if (!pxmy && bpxmy == BoardState::NONE) { bpxmy = getState(x + i + 1, y - (i + 1));   if (bpxmy == BoardState::BORDER)bpxmy = BoardState::NONE;};
+			if (!pxy && bpxy == BoardState::NONE) { bpxy = getState(x + i + 1, y);				  if (bpxy != n(cur))bpxy = BoardState::NONE; };
+			if (!pxpy && bpxpy == BoardState::NONE) { bpxpy = getState(x + i + 1, y + i + 1);	  if (bpxpy != n(cur))bpxpy = BoardState::NONE;};
+			if (!xpy && bxpy == BoardState::NONE) { bxpy = getState(x, y + i + 1);				  if (bxpy != n(cur))bxpy = BoardState::NONE;};
+			if (!mxpy && bmxpy == BoardState::NONE) { bmxpy = getState(x - (i + 1), y + i + 1);   if (bmxpy != n(cur))bmxpy = BoardState::NONE;};
+			if (!mxy && bmxy == BoardState::NONE) { bmxy = getState(x - (i + 1), y);			  if (bmxy != n(cur))bmxy = BoardState::NONE;};
+			if (!mxmy && bmxmy == BoardState::NONE) { bmxmy = getState(x - (i + 1), y - (i + 1)); if (bmxmy != n(cur))bmxmy = BoardState::NONE;};
+			if (!xmy && bxmy == BoardState::NONE) { bxmy = getState(x, y - (i + 1));			  if (bxmy != n(cur))bxmy = BoardState::NONE;};
+			if (!pxmy && bpxmy == BoardState::NONE) { bpxmy = getState(x + i + 1, y - (i + 1));   if (bpxmy != n(cur))bpxmy = BoardState::NONE;};
 
 			if (pxy) dx++;
 			if (mxy) dmx++;
@@ -179,10 +179,12 @@ public:
 		pair<BoardState, BoardState> ret = {cur,cur};
 		pair<int, int> retXY = { -2,-2 };
 		int bestb = 0;
+		bool oneonethree = false;
 		if ((dx + dmx) == mmax) {
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
+			if (bpxy == cur || bmxy == cur)oneonethree = true;
 			if (bpxy == BoardState::NONE || bpxy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dx,y }; }
 			if (bmxy == BoardState::NONE || bmxy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmx,y }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
@@ -191,6 +193,7 @@ public:
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
+			if (bxmy == cur || bxpy == cur)oneonethree = true;
 			if (bxmy == BoardState::NONE || bxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x,y - dy }; }
 			if (bxpy == BoardState::NONE || bxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x,y + dmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
@@ -199,6 +202,7 @@ public:
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
+			if (bpxpy == cur || bmxmy == cur)oneonethree = true;
 			if (bpxpy == BoardState::NONE || bpxpy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
 			if (bmxmy == BoardState::NONE || bmxmy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
@@ -207,17 +211,21 @@ public:
 			pair<BoardState, BoardState> ret2 = { n(cur),n(cur) };
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
+			if (bpxmy == cur || bmxpy == cur)oneonethree = true;
 			if (bpxmy == BoardState::NONE || bpxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dmxy, y - dmxy }; }
 			if (bmxpy == BoardState::NONE || bmxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmxmy, y + dmxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		bool move = false;
 		//mmax value is always one more than the actual stone count
+		//TODO: fix .OOOOX vs .OOO. ???
 		if (mmax == 5 && bestb >= 1) {
 			move = true;
 		} else if (mmax==4 && bestb == 2) {// .XXX.X is fixed but .XXX..X is false-positive
 			move = true;
 		} else if (offense && mmax == 3 && bestb>=1) {
+			move = true;
+		} else if(oneonethree && mmax == 4){//fixes OXXX.X
 			move = true;
 		}
 
@@ -274,6 +282,21 @@ public:
 			if (tmp.first) { return tmp; }
 		}
 		cs.clear();
+		/*
+		* . . . . .
+		* . . O . .
+		* . . . O .
+		* X O O O ?
+		* . . . . .
+		*/
+		for (size_t x = 0; x < state.size(); x++) {
+			for (size_t y = 0; y < state[0].size(); y++) {
+				Board b = *this;
+				if(!b.setState(player,x,y))continue;
+				if (evalPoint(x, y) != 4)continue;
+				if (evalLineBlocked(x, y, false).first) { printf("Found a trap!\n"); return { true, {x, y} }; };
+			}
+		}
 		//-------Offensive Moves-------
 		//Check only interesting stones
 		for (size_t x = 0; x < state.size(); x++) {
@@ -336,6 +359,15 @@ int main() {
 			if (in.compare("bot") == 0) {
 				pair<bool,pair<int, int>> result = board.bot();
 				if(result.first)printf("Bot X%d Y%d\n",result.second.first,result.second.second);
+				continue;
+			} else if (in.compare("botm") == 0) {
+				pair<bool, pair<int, int>> result = board.bot();
+				if (result.first){
+					if(board.setState(board.player, result.second.first, result.second.second));
+					board.player = board.n(board.player);
+				} else {
+					printf("Couldn't decide where to place my next stone.");
+				}
 				continue;
 			}
 			/*if (in.compare("time") == 0) {
