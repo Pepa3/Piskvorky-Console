@@ -23,17 +23,12 @@ public:
 		center = {w/2, h/2};
 		player = BoardState(1);
 	}
-	Board(BoardState defval) : Board(15,15,defval){}
-	Board() : Board(BoardState(0)) {}
 
-	~Board() {
-		state.~vector();
-		center.~pair();
-		player.~BoardState();
-	}
+	/*~Board() {
+	}*/
 
 	BoardState getState(unsigned x, unsigned y) {
-		if (x<0 || y<0 || x>state.size()-1 || y> state[0].size()-1) return BoardState::BORDER;
+		if (x>state.size()-1 || y> state[0].size()-1) return BoardState::BORDER;
 		return state[x][y];
 	}
 
@@ -64,7 +59,7 @@ public:
 		case Board::BoardState::O:
 			return 'O';
 		default:
-			unexpected();
+			throw exception();
 		}
 	}
 
@@ -78,8 +73,9 @@ public:
 		ret.append("   0 1 2 3 4 5 6 7 8 9 1011121314\n");
 		for (size_t i = 0; i < w; i++) {
 			char* str = new char[4];
-			sprintf_s(str,4,"%3d", i);
+			snprintf(str,4,"%3ld", i);
 			ret.append(str);
+			delete[] str;
 			for (size_t j = 0; j < h; j++) {
 				ret.append({ s2c(state[x+i][y+j])});
 				ret.append(" ");
@@ -122,8 +118,9 @@ public:
 			return evalPoint(x, y);
 		case BoardState::O:
 			return -(signed)evalPoint(x, y);
+		default:
+			throw exception();
 		}
-		throw exception();
 	}
 	/*
 		. . ? . . .
@@ -291,10 +288,15 @@ public:
 		*/
 		for (size_t x = 0; x < state.size(); x++) {
 			for (size_t y = 0; y < state[0].size(); y++) {
-				Board b = *this;
-				if(!b.setState(player,x,y))continue;
-				if (evalPoint(x, y) != 4)continue;
-				if (evalLineBlocked(x, y, false).first) { printf("Found a trap!\n"); return { true, {x, y} }; };
+				Board* b = new Board(*this);
+				if(!b->setState(player,x,y)) {delete b; continue;}
+				if(b->evalPoint(x, y) != 4) {delete b; continue;}
+				if(b->evalLineBlocked(x, y, false).first) {
+					printf("Found a trap!\n");
+					delete b;
+					return { true, {x, y} };
+				}
+				delete b;
 			}
 		}
 		//-------Offensive Moves-------
@@ -335,8 +337,8 @@ private:
 
 int main() {
 	srand((unsigned)time(NULL));
-	Board board = Board();
 	int ww = 15, wh = 15;
+	Board board = Board(ww,wh);
 
 	string in;
 	bool endgame = false;
@@ -353,8 +355,7 @@ int main() {
 		try	{
 			a = stoi(tok1);
 			b = stoi(tok2);
-		}
-		catch (const exception&) {
+		}catch (const exception&) {
 			if (in.compare("end") == 0) { endgame = true; continue; }
 			if (in.compare("bot") == 0) {
 				pair<bool,pair<int, int>> result = board.bot();
@@ -363,10 +364,9 @@ int main() {
 			} else if (in.compare("botm") == 0) {
 				pair<bool, pair<int, int>> result = board.bot();
 				if (result.first){
-					if(board.setState(board.player, result.second.first, result.second.second));
-					board.player = board.n(board.player);
+					if(board.setState(board.player, result.second.first, result.second.second))board.player = board.n(board.player);//TODO: review
 				} else {
-					printf("Couldn't decide where to place my next stone.");
+					printf("Couldn't decide where to place my next stone.\n");
 				}
 				continue;
 			}
@@ -398,8 +398,6 @@ int main() {
 		printf("Got position: %d %d\n",a,b);
 
 	}
-
-	board.~Board();
 }
 
 /*pair<signed, pair<int, int>> minimax(Board* b, signed depth) {
