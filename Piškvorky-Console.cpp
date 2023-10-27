@@ -276,7 +276,7 @@ public:
 		//defend if neccessary
 		for (pair<int,int> c : cs){
 			auto tmp = evalLineBlocked(c.first, c.second, false);
-			if (tmp.first) { return tmp; }
+			if (tmp.first) { printf("Defense"); return tmp; }
 		}
 		cs.clear();
 		/*
@@ -309,7 +309,7 @@ public:
 		//find the best move
 		for (pair<int, int> c : cs) {
 			auto tmp = evalLineBlocked(c.first, c.second,true);
-			if (tmp.first) { return tmp; }
+			if (tmp.first) { printf("Offense - auto"); return tmp; }
 		}
 		cs.clear();
 
@@ -322,6 +322,7 @@ public:
 			}
 		}
 		if (cs.size() >= 2) {
+			printf("Offense - random");
 			int i = rand() % cs.size();
 			return { true,cs.at(i) };
 		}
