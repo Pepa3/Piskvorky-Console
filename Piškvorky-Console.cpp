@@ -276,7 +276,7 @@ public:
 		//defend if neccessary
 		for (pair<int,int> c : cs){
 			auto tmp = evalLineBlocked(c.first, c.second, false);
-			if (tmp.first) { printf("Defense"); return tmp; }
+			if (tmp.first) { printf("Defense\n"); return tmp; }
 		}
 		cs.clear();
 		/*
@@ -289,10 +289,10 @@ public:
 		for (size_t x = 0; x < state.size(); x++) {
 			for (size_t y = 0; y < state[0].size(); y++) {
 				Board* b = new Board(*this);
-				if(!b->setState(player,x,y)) {delete b; continue;}
+				if(!b->setState(player,x,y)) {delete b; continue;}//TODO: merge ifs
 				if(b->evalPoint(x, y) != 4) {delete b; continue;}
 				if(b->evalLineBlocked(x, y, false).first) {
-					printf("Found a trap!\n");
+					printf("Found a trap!\n");//Doesn't work!
 					delete b;
 					return { true, {x, y} };
 				}
@@ -309,7 +309,7 @@ public:
 		//find the best move
 		for (pair<int, int> c : cs) {
 			auto tmp = evalLineBlocked(c.first, c.second,true);
-			if (tmp.first) { printf("Offense - auto"); return tmp; }
+			if (tmp.first) { printf("Offense - auto\n"); return tmp; }
 		}
 		cs.clear();
 
@@ -322,7 +322,7 @@ public:
 			}
 		}
 		if (cs.size() >= 2) {
-			printf("Offense - random");
+			printf("Offense - random\n");
 			int i = rand() % cs.size();
 			return { true,cs.at(i) };
 		}
