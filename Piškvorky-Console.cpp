@@ -6,6 +6,7 @@
 #include <string>
 #include <time.h>
 #include <chrono>
+#include <thread>
 
 using namespace std;
 
@@ -24,9 +25,6 @@ public:
 		player = BoardState(1);
 	}
 
-	/*~Board() {
-	}*/
-
 	BoardState getState(unsigned x, unsigned y) {
 		if (x>state.size()-1 || y> state[0].size()-1) return BoardState::BORDER;
 		return state[x][y];
@@ -44,6 +42,7 @@ public:
 	bool setState(BoardState s, int x, int y) {
 		if (state[x][y] == BoardState::NONE) {
 			state[x][y] = s;
+			moves.push_back({ x, y });
 		} else {
 			return false;
 		}
@@ -216,7 +215,7 @@ public:
 		bool move = false;
 		//mmax value is always one more than the actual stone count
 		//TODO: fix .OOOOX vs .OOO. ???
-		if (mmax == 5 && bestb >= 1) {
+		if (mmax == 5 && bestb >= 1) {//TODO: priority for winning (.XXXX)
 			move = true;
 		} else if (mmax==4 && bestb == 2) {// .XXX.X is fixed but .XXX..X is false-positive
 			move = true;
@@ -259,6 +258,9 @@ public:
 			return true;
 		}
 		return false;
+	}
+	vector<pair<int, int>> neighbors(int x, int y) {
+		return { {x - 1,y - 1},{x,y - 1},{x + 1,y - 1},{x - 1,y},{x + 1,y},{x - 1,y + 1},{x,y + 1},{x + 1,y + 1} };
 	}
 
 	bool checkX(int x, int y, unsigned a) {return evalPoint(x, y) >= a;}
@@ -321,18 +323,22 @@ public:
 				}
 			}
 		}
-		if (cs.size() >= 2) {
+		if (cs.size() > 0) {
 			printf("Offense - random\n");
 			int i = rand() % cs.size();
 			return { true,cs.at(i) };
 		}
-		printf("I don't know what to do! Please help.\n");
+
+		printf("First move.\n");
 		//TODO:opening
-		return { false, {7, 7} };
+		return { true, {7, 7} };
 	}
+
+	vector<pair<int, int>> getMoves() {return moves;}
 	
 private:
 	vector<vector<BoardState>> state;
+	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
 
@@ -371,12 +377,15 @@ int main() {
 				}
 				continue;
 			}
-			/*if (in.compare("time") == 0) {
+			if (in.compare("time") == 0) {
 				auto t1 = chrono::high_resolution_clock::now();
-				board.minimax(&board,4);
+				board.bot();
 				auto t2 = chrono::high_resolution_clock::now();
-				cout << "minimax 4 takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
-			}*/
+				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
+			}
+			if (in.compare("save") == 0) {
+				//TODO:
+			}
 			printf("Error, please try again\n");
 			continue;
 		}
@@ -391,13 +400,14 @@ int main() {
 		}
 		if (board.checkEndgame(x+a,y+b)) {
 			printf("Player %c wins!\n",board.s2c(board.player));
-			endgame = true;
 			cout << board.window(ww, wh);
 			break;
 		}
 		board.player = Board::BoardState((uint8_t)board.player % 2 + 1);
 		printf("Got position: %d %d\n",a,b);
-
+	}
+	while (!endgame) {
+		this_thread::sleep_for(1ms);
 	}
 }
 
