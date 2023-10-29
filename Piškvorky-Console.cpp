@@ -383,7 +383,16 @@ public:
 			setState(player, x, y);
 			player = n(player);
 		}
-		//TODO: check
+		for (unsigned i = 0; i < state.size(); i++) {
+			for (unsigned j = 0; j < state[0].size(); j++) {
+				char s = s2c(state[i][j]);
+				char s2 = line.at(6+j+i*15);
+				if (s != s2) {
+					printf("Checking failed, found inconsistency in PISQ file.\n");
+					return;
+				}
+			}
+		}
 	}
 
 	vector<pair<int, int>> getMoves() {return moves;}
