@@ -1,12 +1,14 @@
 ﻿// Piškvorky-Console.cpp
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <random>
 #include <string>
 #include <time.h>
 #include <chrono>
 #include <thread>
+#include <format>
 
 using namespace std;
 
@@ -70,7 +72,7 @@ public:
 		int y = center.second - h/2;
 		string ret = "";
 		ret.append("   0 1 2 3 4 5 6 7 8 9 1011121314\n");
-		for (size_t i = 0; i < w; i++) {
+		for (unsigned i = 0; i < w; i++) {
 			char* str = new char[4];
 			snprintf(str,4,"%3ld", i);
 			ret.append(str);
@@ -84,11 +86,11 @@ public:
 		return ret;
 	}
 
-	unsigned evalPoint(int x, int y) {
+	unsigned evalPoint(unsigned x, unsigned y) {
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
-		for (size_t i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+		for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 			pxy &= (getState(x + i, y) == cur);
 			pxpy &= (getState(x + i, y + i) == cur);
 			xpy &= (getState(x, y + i) == cur);
@@ -109,7 +111,7 @@ public:
 		return max(max(dx,dy), max(dxy, dmxy));
 	}
 	//Black(X) = + ; White(O) = -
-	signed evalPoint1(int x, int y) {
+	signed evalPoint1(unsigned x, unsigned y) {
 		switch (getState(x,y)){
 		case BoardState::NONE:
 			return 0;
@@ -134,7 +136,7 @@ public:
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		BoardState bpxy = cur, bpxpy = cur, bxpy = cur, bmxpy = cur, bmxy = cur, bmxmy = cur, bxmy = cur, bpxmy = cur;
 		signed dx = 1, dy = 1, dxy = 1, dmxy = 1, dmx = 1, dmy = 1, dxmy = 1, dmxmy = 1;
-		for (size_t i = 1; i <= 5; i++) {//px = v; py = ->
+		for (unsigned i = 1; i <= 5; i++) {//px = v; py = ->
 			pxy  &= (getState(x + i, y    ) == cur);
 			pxpy &= (getState(x + i, y + i) == cur);
 			xpy  &= (getState(x    , y + i) == cur);
@@ -230,8 +232,8 @@ public:
 
 	signed evalBoard() {
 		signed score = 0;
-		for (size_t i = 0; i < state.size(); i++){
-			for (size_t j = 0; j < state[0].size(); j++){
+		for (unsigned i = 0; i < state.size(); i++){
+			for (unsigned j = 0; j < state[0].size(); j++){
 				signed tmp = evalPoint1(i, j);
 				if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }
 				if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
@@ -270,8 +272,8 @@ public:
 		vector<pair<int, int>> cs = vector<pair<int, int>>();
 		//-------Defensive Moves-------
 		//Check only interesting stones
-		for (size_t x = 0; x < state.size(); x++){
-			for (size_t y = 0; y < state[0].size(); y++){
+		for (unsigned x = 0; x < state.size(); x++){
+			for (unsigned y = 0; y < state[0].size(); y++){
 				if (getState(x, y) == n(player)) cs.push_back({x,y});
 			}
 		}
@@ -288,8 +290,8 @@ public:
 		* X O O O ?
 		* . . . . .
 		*/
-		for (size_t x = 0; x < state.size(); x++) {
-			for (size_t y = 0; y < state[0].size(); y++) {
+		for (unsigned x = 0; x < state.size(); x++) {
+			for (unsigned y = 0; y < state[0].size(); y++) {
 				Board* b = new Board(*this);
 				if(!b->setState(player,x,y)) {delete b; continue;}//TODO: merge ifs
 				if(b->evalPoint(x, y) != 4) {delete b; continue;}
@@ -303,8 +305,8 @@ public:
 		}
 		//-------Offensive Moves-------
 		//Check only interesting stones
-		for (size_t x = 0; x < state.size(); x++) {
-			for (size_t y = 0; y < state[0].size(); y++) {
+		for (unsigned x = 0; x < state.size(); x++) {
+			for (unsigned y = 0; y < state[0].size(); y++) {
 				if (getState(x, y) == player) cs.push_back({ x,y });
 			}
 		}
@@ -316,8 +318,8 @@ public:
 		cs.clear();
 
 		//if no best move then random players neighbor
-		for (size_t x = 0; x < state.size(); x++) {
-			for (size_t y = 0; y < state[0].size(); y++) {
+		for (unsigned x = 0; x < state.size(); x++) {
+			for (unsigned y = 0; y < state[0].size(); y++) {
 				if(hasNeighbor(x, y, player)&&getState(x,y)==BoardState::NONE) {
 					cs.push_back({ x,y });
 				}
@@ -332,6 +334,18 @@ public:
 		printf("First move.\n");
 		//TODO:opening
 		return { true, {7, 7} };
+	}
+
+	string serialize() {
+		string ret = "";
+		ret.append("PISQ1");
+		if (moves.size() == 0) { throw exception(); }
+		for (pair<int,int> move : moves) {
+			char* str = new char[11];
+			snprintf(str, 11, "MOVE %d %d", move.first, move.second);
+			ret.append(str);
+		}
+		return ret;
 	}
 
 	vector<pair<int, int>> getMoves() {return moves;}
@@ -355,7 +369,7 @@ int main() {
 		printf("Score: %d\n", board.evalBoard());
 		printf("Enter position('Y X'): ");
 		getline(cin, in);
-		int del = in.find(" ");
+		size_t del = in.find(" ");
 		std::string tok1 = in.substr(0, del);
 		std::string tok2 = in.substr(del + 1, in.length());
 		int a = -1, b = -1;
@@ -384,7 +398,12 @@ int main() {
 				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
 			}
 			if (in.compare("save") == 0) {
-				//TODO:
+				ofstream out;
+				out.open("out.pisq");
+				out << board.serialize();
+				out.close();
+				printf("Saved to out.pisq\n");
+				continue;
 			}
 			printf("Error, please try again\n");
 			continue;
