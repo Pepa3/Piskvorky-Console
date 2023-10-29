@@ -2,13 +2,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <random>
 #include <string>
 #include <time.h>
 #include <chrono>
 #include <thread>
-#include <format>
 
 using namespace std;
 
@@ -77,7 +77,7 @@ public:
 			snprintf(str,4,"%3ld", i);
 			ret.append(str);
 			delete[] str;
-			for (size_t j = 0; j < h; j++) {
+			for (unsigned j = 0; j < h; j++) {
 				ret.append({ s2c(state[x+i][y+j])});
 				ret.append(" ");
 			}
@@ -333,19 +333,57 @@ public:
 
 		printf("First move.\n");
 		//TODO:opening
-		return { true, {7, 7} };
+		return { true, {7 + (rand() % 3) - 1, 7 + (rand() % 3) - 1} };
 	}
 
 	string serialize() {
 		string ret = "";
-		ret.append("PISQ1");
+		ret.append("PISQ 1\n");
 		if (moves.size() == 0) { throw exception(); }
 		for (pair<int,int> move : moves) {
-			char* str = new char[11];
-			snprintf(str, 11, "MOVE %d %d", move.first, move.second);
+			char* str = new char[12];
+			snprintf(str, 12, "MOVE %d %d\n", move.first, move.second);
 			ret.append(str);
 		}
+		ret.append("CHECK ");
+		for (unsigned i = 0; i < state.size(); i++) {
+			for (unsigned j = 0; j < state[0].size(); j++) {
+				ret.append({ s2c(state[i][j]) });
+			}
+		}
+		ret.append("\n");
 		return ret;
+	}
+
+	void deserialize(ifstream& in) {
+		if (moves.size() >= 1) { printf("Game already started! Please restart.\n"); return; }
+
+		int version = 0;
+
+		string line;
+		getline(in, line);
+		if (line.substr(0, 4).compare("PISQ") == 0) {
+			version = stoi(line.substr(5, 1));
+		} else {
+			printf("ERROR: Malformed PISQ file.\n");
+			return;
+		}
+		if (version != 1) {
+			printf("ERROR: Unknown PISQ format!\n");
+			return;
+		}
+
+		while (getline(in, line)) {
+			if (line.substr(0, 4).compare("MOVE") != 0) break;
+			istringstream str(line.substr(5));
+			string a,b;
+			if (!(str >> a >> b)) break;
+			int x = stoi(a), y = stoi(b);
+			moves.push_back({ x,y });
+			setState(player, x, y);
+			player = n(player);
+		}
+		//TODO: check
 	}
 
 	vector<pair<int, int>> getMoves() {return moves;}
@@ -385,11 +423,12 @@ int main() {
 			} else if (in.compare("botm") == 0) {
 				pair<bool, pair<int, int>> result = board.bot();
 				if (result.first){
-					if(board.setState(board.player, result.second.first, result.second.second))board.player = board.n(board.player);//TODO: review
+					a = result.second.first;//TODO: fix if windowing implemented
+					b = result.second.second;
 				} else {
 					printf("Couldn't decide where to place my next stone.\n");
 				}
-				continue;
+				goto skip;//...
 			}
 			if (in.compare("time") == 0) {
 				auto t1 = chrono::high_resolution_clock::now();
@@ -399,15 +438,23 @@ int main() {
 			}
 			if (in.compare("save") == 0) {
 				ofstream out;
-				out.open("out.pisq");
+				out.open("out.pisq", ios::out | ios::trunc);
 				out << board.serialize();
 				out.close();
 				printf("Saved to out.pisq\n");
+				continue;
+			}else if (in.compare("load") == 0) {
+				ifstream in;
+				in.open("out.pisq", ios::in);
+				board.deserialize(in);
+				in.close();
+				printf("Read from out.pisq\n");
 				continue;
 			}
 			printf("Error, please try again\n");
 			continue;
 		}
+		skip:
 		int x = board.getCenter().first - ww / 2;
 		int y = board.getCenter().second - wh / 2;
 		if (x + a >= ww || y + b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
