@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 //#include <format>
+constexpr unsigned MM_DEPTH = 4;//4 is the only working depth
 
 using namespace std;
 
@@ -404,7 +405,7 @@ public:
 
 	pair<signed, pair<int, int>> minimax(Board* b, signed depth, signed alpha, signed beta) {
 			if (depth <= 0) { return { (*b).evalBoard(), { -1,-1 } }; }
-			else if(depth>2){ printf("%d", depth); }
+			else if(depth>MM_DEPTH-2){ printf("%d", depth); }
 			if ((*b).player == BoardState::X) {
 				signed score = -2561;
 				pair<int, int> best = { -1,-1 };
@@ -414,7 +415,7 @@ public:
 						if (!hasNeighbor(i, j)) { continue; }
 						Board b2 = *b;
 						if (!b2.setState(b2.player, i, j)) continue;
-						if (b2.checkEndgame(i, j)) { tmp = 2561; goto minimax_skip_1; }
+						if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
 						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
 						tmp = minimax(&b2, depth-1,alpha,beta).first;
 						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
@@ -422,8 +423,8 @@ public:
 							score = tmp;
 							minimax_skip_1:
 							best = { i,j };
-							if (score >= beta) { return { score, best }; }
-							if (tmp >= 2500) { return { score, best }; }
+							if (score > beta) { return { score, best }; }
+							if (score >= 2500) { return { score, best }; }
 						}
 						alpha = max(alpha, score);
 					}
@@ -447,7 +448,7 @@ public:
 							minimax_skip_2:
 							best = { i,j };
 							if (score < alpha) { return { score,best }; }
-							if (tmp <= -2500) { return { score,best }; }
+							if (score <= -2500) { return { score,best }; }
 						}
 						beta = min(beta, score);
 						//score = min(score, minimax(&b2, depth-1));
@@ -489,11 +490,11 @@ int main() {
 		}catch (const exception&) {
 			if (in.compare("end") == 0) { endgame = true; continue; }
 			if (in.compare("bot") == 0) {
-				pair<signed,pair<int, int>> result = board.minimax(&board,4,-2560,2560);
+				pair<signed, pair<int, int>> result = board.minimax(&board, MM_DEPTH, -2560, 2560);
 				printf("Bot X%d Y%d\n",result.second.first,result.second.second);
 				continue;
 			} else if (in.compare("botm") == 0) {
-				pair<bool, pair<int, int>> result = board.minimax(&board, 4, -2560, 2560);;
+				pair<bool, pair<int, int>> result = board.minimax(&board, MM_DEPTH, -2560, 2560);
 				
 				a = result.second.first;//TODO: fix if windowing implemented
 				b = result.second.second;
@@ -501,7 +502,7 @@ int main() {
 			}
 			if (in.compare("time") == 0) {
 				auto t1 = chrono::high_resolution_clock::now();
-				board.minimax(&board, 4, -2560, 2560);
+				board.minimax(&board, MM_DEPTH, -2560, 2560);
 				auto t2 = chrono::high_resolution_clock::now();
 				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
 			}
