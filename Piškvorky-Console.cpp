@@ -9,6 +9,7 @@
 #include <time.h>
 #include <chrono>
 #include <thread>
+//#include <format>
 
 using namespace std;
 
@@ -28,13 +29,13 @@ public:
 	}
 
 	BoardState getState(unsigned x, unsigned y) {
-		if (x>state.size()-1 || y> state[0].size()-1) return BoardState::BORDER;
+		if (x>state.size()-1 || y> state[0].size()-1 || ((signed)x) < 0 || ((signed)y) < 0) return BoardState::BORDER;
 		return state[x][y];
 	}
 
-	bool isX(unsigned x, unsigned y) { return getState(x, y) == BoardState::X; }
-	bool isO(unsigned x, unsigned y) { return getState(x, y) == BoardState::O; }
-	bool isXO(unsigned x, unsigned y) { return getState(x, y) != BoardState::NONE; }
+	inline bool isX(unsigned x, unsigned y) { return getState(x, y) == BoardState::X; }
+	inline bool isO(unsigned x, unsigned y) { return getState(x, y) == BoardState::O; }
+	inline bool isXO(unsigned x, unsigned y) { return getState(x, y) != BoardState::NONE; }
 
 	BoardState n(BoardState a) {
 		if (a == BoardState::NONE) throw exception();
@@ -42,7 +43,7 @@ public:
 	}
 
 	bool setState(BoardState s, int x, int y) {
-		if (state[x][y] == BoardState::NONE) {
+		if (getState(x,y) == BoardState::NONE) {
 			state[x][y] = s;
 			moves.push_back({ x, y });
 		} else {
@@ -51,7 +52,7 @@ public:
 		return true;
 	}
 
-	static char s2c(BoardState stat) {
+	constexpr char s2c(BoardState stat) {
 		switch (stat){
 		case Board::BoardState::NONE:
 			return '.';
@@ -59,8 +60,10 @@ public:
 			return 'X';
 		case Board::BoardState::O:
 			return 'O';
+		case Board::BoardState::BORDER:
+			return '%';
 		default:
-			throw exception();
+			return '@';
 		}
 	}
 
@@ -219,7 +222,7 @@ public:
 		//TODO: fix .OOOOX vs .OOO. ???
 		if (mmax == 5 && bestb >= 1) {//TODO: priority for winning (.XXXX)
 			move = true;
-		} else if (mmax==4 && bestb == 2) {// .XXX.X is fixed but .XXX..X is false-positive
+		} else if (mmax==4 && bestb == 2) {// .XXX.X is fixed but .XXX..X is false-positive // Doesn't always work
 			move = true;
 		} else if (offense && mmax == 3 && bestb>=1) {
 			move = true;
@@ -244,10 +247,14 @@ public:
 	}
 
 	bool hasNeighbor(int x, int y) {
-		if (getState(x - 1, y) != BoardState::NONE || getState(x + 1, y) != BoardState::NONE ||
-			getState(x, y - 1) != BoardState::NONE || getState(x, y + 1) != BoardState::NONE ||
-			getState(x - 1, y + 1) != BoardState::NONE || getState(x + 1, y + 1) != BoardState::NONE ||
-			getState(x - 1, y - 1) != BoardState::NONE || getState(x + 1, y - 1) != BoardState::NONE) {
+		if (getState(x - 1, y) != BoardState::NONE && getState(x - 1, y) != BoardState::BORDER ||
+			getState(x + 1, y) != BoardState::NONE && getState(x + 1, y) != BoardState::BORDER ||
+			getState(x, y - 1) != BoardState::NONE && getState(x, y - 1) != BoardState::BORDER ||
+			getState(x, y + 1) != BoardState::NONE && getState(x, y + 1) != BoardState::BORDER ||
+			getState(x - 1, y + 1) != BoardState::NONE && getState(x - 1, y + 1) != BoardState::BORDER ||
+			getState(x + 1, y + 1) != BoardState::NONE && getState(x + 1, y + 1) != BoardState::BORDER ||
+			getState(x - 1, y - 1) != BoardState::NONE && getState(x - 1, y - 1) != BoardState::BORDER ||
+			getState(x + 1, y - 1) != BoardState::NONE && getState(x + 1, y - 1) != BoardState::BORDER) {
 			return true;
 		}
 		return false;
@@ -261,7 +268,7 @@ public:
 		}
 		return false;
 	}
-	vector<pair<int, int>> neighbors(int x, int y) {
+	constexpr vector<pair<int, int>> neighbors(int x, int y) {
 		return { {x - 1,y - 1},{x,y - 1},{x + 1,y - 1},{x - 1,y},{x + 1,y},{x - 1,y + 1},{x,y + 1},{x + 1,y + 1} };
 	}
 
@@ -395,6 +402,62 @@ public:
 		}
 	}
 
+	pair<signed, pair<int, int>> minimax(Board* b, signed depth, signed alpha, signed beta) {
+			if (depth <= 0) { return { (*b).evalBoard(), { -1,-1 } }; }
+			else if(depth>2){ printf("%d", depth); }
+			if ((*b).player == BoardState::X) {
+				signed score = -2561;
+				pair<int, int> best = { -1,-1 };
+				for (unsigned i = 0; i < (*b).state.size(); i++) {
+					for (unsigned j = 0; j < (*b).state[0].size(); j++) {
+						int tmp;
+						if (!hasNeighbor(i, j)) { continue; }
+						Board b2 = *b;
+						if (!b2.setState(b2.player, i, j)) continue;
+						if (b2.checkEndgame(i, j)) { tmp = 2561; goto minimax_skip_1; }
+						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+						tmp = minimax(&b2, depth-1,alpha,beta).first;
+						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+						if (tmp > score) {
+							score = tmp;
+							minimax_skip_1:
+							best = { i,j };
+							if (score >= beta) { return { score, best }; }
+							if (tmp >= 2500) { return { score, best }; }
+						}
+						alpha = max(alpha, score);
+					}
+				}
+				return { score, best};
+			}else if ((*b).player == BoardState::O) {
+				signed score = 2561;
+				pair<int, int> best = { -1,-1 };
+				for (unsigned i = 0; i < (*b).state.size(); i++) {
+					for (unsigned j = 0; j < (*b).state[0].size(); j++) {
+						int tmp;
+						if (!hasNeighbor(i, j)) { continue; }
+						Board b2 = *b;
+						if(!b2.setState(b2.player, i, j)) continue;
+						if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
+						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+						tmp = minimax(&b2, depth - 1,alpha,beta).first;
+						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+						if (tmp < score) {
+							score = tmp;
+							minimax_skip_2:
+							best = { i,j };
+							if (score < alpha) { return { score,best }; }
+							if (tmp <= -2500) { return { score,best }; }
+						}
+						beta = min(beta, score);
+						//score = min(score, minimax(&b2, depth-1));
+					}
+				}
+				return { score, best};
+			}
+			return { 0, { -1, -1 } };
+		}
+
 	vector<pair<int, int>> getMoves() {return moves;}
 	
 private:
@@ -426,22 +489,19 @@ int main() {
 		}catch (const exception&) {
 			if (in.compare("end") == 0) { endgame = true; continue; }
 			if (in.compare("bot") == 0) {
-				pair<bool,pair<int, int>> result = board.bot();
-				if(result.first)printf("Bot X%d Y%d\n",result.second.first,result.second.second);
+				pair<signed,pair<int, int>> result = board.minimax(&board,4,-2560,2560);
+				printf("Bot X%d Y%d\n",result.second.first,result.second.second);
 				continue;
 			} else if (in.compare("botm") == 0) {
-				pair<bool, pair<int, int>> result = board.bot();
-				if (result.first){
-					a = result.second.first;//TODO: fix if windowing implemented
-					b = result.second.second;
-				} else {
-					printf("Couldn't decide where to place my next stone.\n");
-				}
+				pair<bool, pair<int, int>> result = board.minimax(&board, 4, -2560, 2560);;
+				
+				a = result.second.first;//TODO: fix if windowing implemented
+				b = result.second.second;
 				goto skip;//...
 			}
 			if (in.compare("time") == 0) {
 				auto t1 = chrono::high_resolution_clock::now();
-				board.bot();
+				board.minimax(&board, 4, -2560, 2560);
 				auto t2 = chrono::high_resolution_clock::now();
 				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
 			}
@@ -486,51 +546,6 @@ int main() {
 	}
 }
 
-/*pair<signed, pair<int, int>> minimax(Board* b, signed depth) {
-		if (depth <= 0) { return { (*b).evalBoard(), { -1,-1 } }; }
-		else if(depth>2){ printf("%d", depth); }
-		if ((*b).player == BoardState::X) {
-			signed score = -2561;
-			pair<int, int> best = { -1,-1 };
-			for (size_t i = 0; i < (*b).state.size(); i++) {
-				for (size_t j = 0; j < (*b).state[0].size(); j++) {
-					if (!hasNeighbor(i, j)) { continue; }
-					Board b2 = *b;
-					if (!b2.setState(b2.player, i, j)) continue;
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					int tmp = minimax(&b2, depth-1).first;
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					if (tmp > score) {
-						score = tmp;
-						best = { i,j };
-						if (tmp >= 2500) { return { score,best }; }
-					}
-				}
-			}
-			return { score, best};
-		}else if ((*b).player == BoardState::O) {
-			signed score = 2561;
-			pair<int, int> best = { -1,-1 };
-			for (size_t i = 0; i < (*b).state.size(); i++) {
-				for (size_t j = 0; j < (*b).state[0].size(); j++) {
-					if (!hasNeighbor(i, j)) { continue; }
-					Board b2 = *b;
-					if(!b2.setState(b2.player, i, j)) continue;
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					int tmp = minimax(&b2, depth - 1).first;
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					if (tmp < score) {
-						score = tmp;
-						best = { i,j };
-						if (tmp <= -2500) { return { score,best }; }
-					}
-					//score = min(score, minimax(&b2, depth-1));
-				}
-			}
-			return { score, best};
-		}
-		return { 0, { -1, -1 } };
-	}*/
 	/*function minimax(node, depth, maximizingPlayer) is
 	if depth = 0 or node is a terminal node then
 		return the heuristic value of node
