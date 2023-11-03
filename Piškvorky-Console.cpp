@@ -10,7 +10,7 @@
 #include <chrono>
 #include <thread>
 //#include <format>
-constexpr unsigned MM_DEPTH = 4;//4 is the only working depth
+constexpr unsigned MM_DEPTH = 6;//4 works  >5 is slow
 
 using namespace std;
 
@@ -47,13 +47,13 @@ public:
 		if (getState(x,y) == BoardState::NONE) {
 			state[x][y] = s;
 			moves.push_back({ x, y });
+			return true;
 		} else {
 			return false;
 		}
-		return true;
 	}
 
-	constexpr char s2c(BoardState stat) {
+	char s2c(BoardState stat) {
 		switch (stat){
 		case Board::BoardState::NONE:
 			return '.';
@@ -269,7 +269,7 @@ public:
 		}
 		return false;
 	}
-	constexpr vector<pair<int, int>> neighbors(int x, int y) {
+	vector<pair<int, int>> neighbors(int x, int y) {
 		return { {x - 1,y - 1},{x,y - 1},{x + 1,y - 1},{x - 1,y},{x + 1,y},{x - 1,y + 1},{x,y + 1},{x + 1,y + 1} };
 	}
 
@@ -404,60 +404,62 @@ public:
 	}
 
 	pair<signed, pair<int, int>> minimax(Board* b, signed depth, signed alpha, signed beta) {
-			if (depth <= 0) { return { (*b).evalBoard(), { -1,-1 } }; }
-			else if(depth>MM_DEPTH-2){ printf("%d", depth); }
-			if ((*b).player == BoardState::X) {
-				signed score = -2561;
-				pair<int, int> best = { -1,-1 };
-				for (unsigned i = 0; i < (*b).state.size(); i++) {
-					for (unsigned j = 0; j < (*b).state[0].size(); j++) {
-						int tmp;
-						if (!hasNeighbor(i, j)) { continue; }
-						Board b2 = *b;
-						if (!b2.setState(b2.player, i, j)) continue;
-						if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
-						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-						tmp = minimax(&b2, depth-1,alpha,beta).first;
-						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-						if (tmp > score) {
-							score = tmp;
-							minimax_skip_1:
-							best = { i,j };
-							if (score > beta) { return { score, best }; }
-							if (score >= 2500) { return { score, best }; }
-						}
-						alpha = max(alpha, score);
+		Board b1 = *b;
+		if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
+		else if(depth>MM_DEPTH-3){ printf("%d", depth); }
+		if (b1.player == BoardState::X) {
+			signed score = -2561;
+			pair<int, int> best = { -1,-1 };
+			for (unsigned i = 0; i < b1.state.size(); i++) {
+				for (unsigned j = 0; j < b1.state[0].size(); j++) {
+					pair<signed,pair<int,int>> temp;
+					if (!b1.hasNeighbor(i, j)) { continue; }
+					Board b2 = *b;
+					if (!b2.setState(b2.player, i, j)) continue;
+					if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
+					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+					temp = minimax(&b2, depth - 1, alpha, beta);
+					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+					if (temp.first > score) {
+						score = temp.first;
+						minimax_skip_1:
+						best = { i,j };
+						if (score > beta) { return { score, best }; }
+						if (score >= 2500) { return { score, best }; }
 					}
+					alpha = max(alpha, score);
 				}
-				return { score, best};
-			}else if ((*b).player == BoardState::O) {
-				signed score = 2561;
-				pair<int, int> best = { -1,-1 };
-				for (unsigned i = 0; i < (*b).state.size(); i++) {
-					for (unsigned j = 0; j < (*b).state[0].size(); j++) {
-						int tmp;
-						if (!hasNeighbor(i, j)) { continue; }
-						Board b2 = *b;
-						if(!b2.setState(b2.player, i, j)) continue;
-						if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
-						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-						tmp = minimax(&b2, depth - 1,alpha,beta).first;
-						b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-						if (tmp < score) {
-							score = tmp;
-							minimax_skip_2:
-							best = { i,j };
-							if (score < alpha) { return { score,best }; }
-							if (score <= -2500) { return { score,best }; }
-						}
-						beta = min(beta, score);
-						//score = min(score, minimax(&b2, depth-1));
-					}
-				}
-				return { score, best};
 			}
-			return { 0, { -1, -1 } };
+			return { score, best };
+		}else if (b1.player == BoardState::O) {
+			signed score = 2561;
+			pair<int, int> best = { -1,-1 };
+			for (unsigned i = 0; i < b1.state.size(); i++) {
+				for (unsigned j = 0; j < b1.state[0].size(); j++) {
+					pair<signed,pair<int,int>> temp;
+					if (!b1.hasNeighbor(i, j)) { continue; }
+					Board b2 = *b;
+					if(!b2.setState(b2.player, i, j)) continue;
+					if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
+					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+					temp = minimax(&b2, depth - 1, alpha, beta);
+					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
+					if (temp.first < score) {
+						score = temp.first;
+						minimax_skip_2:
+						best = { i,j };
+						if (score < alpha) { return { score,best }; }
+						if (score <= -2500) { return { score,best }; }
+					}
+					beta = min(beta, score);
+					//score = min(score, minimax(&b2, depth-1));
+				}
+			}
+			return { score, best };
 		}
+		printf("Failed\n");
+		return { 0, { -1, -1 } };
+	}
 
 	vector<pair<int, int>> getMoves() {return moves;}
 	
