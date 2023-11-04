@@ -1,5 +1,6 @@
 ﻿// Piškvorky-Console.cpp
 
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -9,46 +10,62 @@
 #include <time.h>
 #include <chrono>
 #include <thread>
+#include <list>
 //#include <format>
-constexpr int MM_DEPTH = 6;//4 works  >5 is slow  even is better
-
-//TODO: move Board-independent code outside of Board class
-//TODO: mininax - improve evalPoint function
-//TODO: minimax - split node eval into collection of nodes and evaluation of nodes
+constexpr int MM_DEPTH = 4;//4 works  >5 is slow  even is better
 
 using namespace std;
 
-class Board {
-public:
-	enum class BoardState {
-		NONE, X, O, BORDER
-	};
+enum BoardState {
+	NONE, X, O, BORDER
+};
+	
+BoardState n(BoardState a) noexcept{
+	if (a == NONE || a == BORDER) printf("FATAL: Unknown player\n");
+	return (a == X) ? O : X;
+}
 
+char s2c(BoardState stat) noexcept{
+	switch (stat){
+	case NONE:
+		return '.';
+	case X:
+		return 'X';
+	case O:
+		return 'O';
+	case BORDER:
+		return '%';
+	default:
+		return '@';
+	}
+}
+
+array<pair<int, int>,8> neighbors(int x, int y) noexcept{
+	return { (pair<int,int>){x-1,y-1},{x,y-1},{x+1,y-1},{x-1,y},{x+1,y},{x-1,y+1},{x,y+1},{x+1,y+1} };
+}
+
+template<size_t W, size_t H> class Board {
+public:
 	BoardState player;
 	const unsigned PIECES_FOR_WIN = 5;
 
-	Board(int w, int h, BoardState defval=BoardState(0)){
-		state = vector<vector<BoardState>>(w,vector<BoardState>(h,defval));
-		center = {w/2, h/2};
+	Board(BoardState defval=BoardState(0)){
+		state = {{defval}};
+		center = {W/2, H/2};
 		player = BoardState(1);
 	}
 
-	BoardState getState(unsigned x, unsigned y) {
-		if (x>state.size()-1 || y> state[0].size()-1 || ((signed)x) < 0 || ((signed)y) < 0) return BoardState::BORDER;
+	BoardState getState(unsigned x, unsigned y) noexcept{
+		if (x>state.size()-1 || y> state[0].size()-1 || ((signed)x) < 0 || ((signed)y) < 0) return BORDER;
 		return state[x][y];
 	}
+	
+	inline bool isX(unsigned x, unsigned y) noexcept{ return getState(x, y) == X; }
+	inline bool isO(unsigned x, unsigned y) noexcept{ return getState(x, y) == O; }
+	inline bool isXO(unsigned x, unsigned y) noexcept{ return getState(x, y) != NONE; }
 
-	inline bool isX(unsigned x, unsigned y) { return getState(x, y) == BoardState::X; }
-	inline bool isO(unsigned x, unsigned y) { return getState(x, y) == BoardState::O; }
-	inline bool isXO(unsigned x, unsigned y) { return getState(x, y) != BoardState::NONE; }
-
-	BoardState n(BoardState a) {
-		if (a == BoardState::NONE) throw exception();
-		return (a == BoardState::X) ? BoardState::O : BoardState::X;
-	}
-
-	bool setState(BoardState s, int x, int y) {
-		if (getState(x,y) == BoardState::NONE) {
+	bool setState(BoardState s, int x, int y) noexcept{
+		if (getState(x,y) == NONE) {
 			state[x][y] = s;
 			moves.push_back({ x, y });
 			return true;
@@ -57,44 +74,29 @@ public:
 		}
 	}
 
-	char s2c(BoardState stat) {
-		switch (stat){
-		case Board::BoardState::NONE:
-			return '.';
-		case Board::BoardState::X:
-			return 'X';
-		case Board::BoardState::O:
-			return 'O';
-		case Board::BoardState::BORDER:
-			return '%';
-		default:
-			return '@';
-		}
-	}
+	inline pair<int, int> getCenter() noexcept{ return center; }
+	inline void setCenter(pair<int, int> c) noexcept{ center = c; }
 
-	pair<int, int> getCenter() { return center; }
-	void setCenter(pair<int, int> c) { center = c; }
-
-	string window(unsigned w, unsigned h) {
+	string window(unsigned w, unsigned h) noexcept{
 		int x = center.first - w/2;
 		int y = center.second - h/2;
 		string ret = "";
-		ret.append("   0 1 2 3 4 5 6 7 8 9 1011121314\n");
+		ret.append("    0 1 2 3 4 5 6 7 8 9 1011121314\n");
+		char* str = new char[5];
 		for (unsigned i = 0; i < w; i++) {
-			char* str = new char[4];
-			snprintf(str,4,"%3d", i);
+			snprintf(str,5,"%3d ", i);
 			ret.append(str);
-			delete[] str;
 			for (unsigned j = 0; j < h; j++) {
 				ret.append({ s2c(state[x+i][y+j])});
 				ret.append(" ");
 			}
 			ret.append("\n");
 		}
+		delete[] str;
 		return ret;
 	}
 
-	unsigned evalPoint(unsigned x, unsigned y) {
+	unsigned evalPoint(unsigned x, unsigned y) noexcept{
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
@@ -119,14 +121,50 @@ public:
 		return max(max(dx,dy), max(dxy, dmxy));
 	}
 	//Black(X) = + ; White(O) = -
-	signed evalPoint1(unsigned x, unsigned y) {
+	signed evalPoint1(unsigned x, unsigned y){
 		switch (getState(x,y)){
-		case BoardState::NONE:
+		case NONE:
 			return 0;
-		case BoardState::X:
+		case X:
 			return evalPoint(x, y);
-		case BoardState::O:
+		case O:
 			return -(signed)evalPoint(x, y);
+		default:
+			throw exception();
+		}
+	}
+	unsigned evalPointB(unsigned x, unsigned y) noexcept{
+		BoardState cur = getState(x,y);
+		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
+		unsigned dx = 0, dy = 0, dxy = 0, dmxy = 0;
+		for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			pxy &= (getState(x + i, y) == cur);
+			pxpy &= (getState(x + i, y + i) == cur);
+			xpy &= (getState(x, y + i) == cur);
+			mxpy &= (getState(x - i, y + i) == cur);
+			mxy &= (getState(x - i, y) == cur);
+			mxmy &= (getState(x - i, y - i) == cur);
+			xmy &= (getState(x, y - i) == cur);
+			pxmy &= (getState(x + i, y - i) == cur);
+			if (pxy) dx++;
+			if (mxy) dx++;
+			if (xmy) dy++;
+			if (xpy) dy++;
+			if (pxpy) dxy++;
+			if (mxmy) dxy++;
+			if (pxmy) dmxy++;
+			if (mxpy) dmxy++;
+		}
+		return dx+dy+dxy+dmxy;
+	}
+	signed evalPointB1(unsigned x, unsigned y){
+		switch (getState(x,y)){
+		case NONE:
+			return 0;
+		case X:
+			return evalPointB(x, y);
+		case O:
+			return -(signed)evalPointB(x, y);
 		default:
 			throw exception();
 		}
@@ -162,14 +200,14 @@ public:
 			if (!xmy  && bxmy == cur)  bxmy  = getState(x    , y - i);
 			if (!pxmy && bpxmy == cur) bpxmy = getState(x + i, y - i);
 
-			if (!pxy && bpxy == BoardState::NONE) { bpxy = getState(x + i + 1, y);				  if (bpxy != n(cur))bpxy = BoardState::NONE; };
-			if (!pxpy && bpxpy == BoardState::NONE) { bpxpy = getState(x + i + 1, y + i + 1);	  if (bpxpy != n(cur))bpxpy = BoardState::NONE;};
-			if (!xpy && bxpy == BoardState::NONE) { bxpy = getState(x, y + i + 1);				  if (bxpy != n(cur))bxpy = BoardState::NONE;};
-			if (!mxpy && bmxpy == BoardState::NONE) { bmxpy = getState(x - (i + 1), y + i + 1);   if (bmxpy != n(cur))bmxpy = BoardState::NONE;};
-			if (!mxy && bmxy == BoardState::NONE) { bmxy = getState(x - (i + 1), y);			  if (bmxy != n(cur))bmxy = BoardState::NONE;};
-			if (!mxmy && bmxmy == BoardState::NONE) { bmxmy = getState(x - (i + 1), y - (i + 1)); if (bmxmy != n(cur))bmxmy = BoardState::NONE;};
-			if (!xmy && bxmy == BoardState::NONE) { bxmy = getState(x, y - (i + 1));			  if (bxmy != n(cur))bxmy = BoardState::NONE;};
-			if (!pxmy && bpxmy == BoardState::NONE) { bpxmy = getState(x + i + 1, y - (i + 1));   if (bpxmy != n(cur))bpxmy = BoardState::NONE;};
+			if (!pxy && bpxy == NONE) { bpxy = getState(x + i + 1, y);				  if (bpxy != n(cur))bpxy = NONE; };
+			if (!pxpy && bpxpy == NONE) { bpxpy = getState(x + i + 1, y + i + 1);	  if (bpxpy != n(cur))bpxpy = NONE;};
+			if (!xpy && bxpy == NONE) { bxpy = getState(x, y + i + 1);				  if (bxpy != n(cur))bxpy = NONE;};
+			if (!mxpy && bmxpy == NONE) { bmxpy = getState(x - (i + 1), y + i + 1);   if (bmxpy != n(cur))bmxpy = NONE;};
+			if (!mxy && bmxy == NONE) { bmxy = getState(x - (i + 1), y);			  if (bmxy != n(cur))bmxy = NONE;};
+			if (!mxmy && bmxmy == NONE) { bmxmy = getState(x - (i + 1), y - (i + 1)); if (bmxmy != n(cur))bmxmy = NONE;};
+			if (!xmy && bxmy == NONE) { bxmy = getState(x, y - (i + 1));			  if (bxmy != n(cur))bxmy = NONE;};
+			if (!pxmy && bpxmy == NONE) { bpxmy = getState(x + i + 1, y - (i + 1));   if (bpxmy != n(cur))bpxmy = NONE;};
 
 			if (pxy) dx++;
 			if (mxy) dmx++;
@@ -191,8 +229,8 @@ public:
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
 			if (bpxy == cur || bmxy == cur)oneonethree = true;
-			if (bpxy == BoardState::NONE || bpxy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dx,y }; }
-			if (bmxy == BoardState::NONE || bmxy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmx,y }; }
+			if (bpxy == NONE || bpxy == cur) { ret2.first = NONE; bestb2++; retXY2 = { x + dx,y }; }
+			if (bmxy == NONE || bmxy == cur) { ret2.second = NONE; bestb2++; retXY2 = { x - dmx,y }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dy + dmy) == mmax) {
@@ -200,8 +238,8 @@ public:
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
 			if (bxmy == cur || bxpy == cur)oneonethree = true;
-			if (bxmy == BoardState::NONE || bxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x,y - dy }; }
-			if (bxpy == BoardState::NONE || bxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x,y + dmy }; }
+			if (bxmy == NONE || bxmy == cur) { ret2.first = NONE; bestb2++; retXY2 = { x,y - dy }; }
+			if (bxpy == NONE || bxpy == cur) { ret2.second = NONE; bestb2++; retXY2 = { x,y + dmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dxy + dxmy) == mmax) {
@@ -209,8 +247,8 @@ public:
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
 			if (bpxpy == cur || bmxmy == cur)oneonethree = true;
-			if (bpxpy == BoardState::NONE || bpxpy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
-			if (bmxmy == BoardState::NONE || bmxmy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
+			if (bpxpy == NONE || bpxpy == cur) { ret2.first = NONE; bestb2++; retXY2 = { x + dxy,y + dxy }; }
+			if (bmxmy == NONE || bmxmy == cur) { ret2.second = NONE; bestb2++; retXY2 = { x - dxmy,y - dxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		if ((dmxy + dmxmy) == mmax) {
@@ -218,8 +256,8 @@ public:
 			pair<int, int> retXY2 = { -1,-1 };
 			int bestb2 = 0;
 			if (bpxmy == cur || bmxpy == cur)oneonethree = true;
-			if (bpxmy == BoardState::NONE || bpxmy == cur) { ret2.first = BoardState::NONE; bestb2++; retXY2 = { x + dmxy, y - dmxy }; }
-			if (bmxpy == BoardState::NONE || bmxpy == cur) { ret2.second = BoardState::NONE; bestb2++; retXY2 = { x - dmxmy, y + dmxmy }; }
+			if (bpxmy == NONE || bpxmy == cur) { ret2.first = NONE; bestb2++; retXY2 = { x + dmxy, y - dmxy }; }
+			if (bmxpy == NONE || bmxpy == cur) { ret2.second = NONE; bestb2++; retXY2 = { x - dmxmy, y + dmxmy }; }
 			if (bestb2 > bestb) { bestb = bestb2; ret = ret2; retXY = retXY2; }
 		}
 		bool move = false;
@@ -242,29 +280,29 @@ public:
 		signed score = 0;
 		for (unsigned i = 0; i < state.size(); i++){
 			for (unsigned j = 0; j < state[0].size(); j++){
-				signed tmp = evalPoint1(i, j);
-				if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }
-				if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
+				signed tmp = evalPointB1(i, j);
+				//if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }//dont check endgame in here, use checkEndgame() before call to this function
+				//if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
 				score += tmp;
 			}
 		}
 		return score;
 	}
 
-	bool hasNeighbor(int x, int y) {
-		if ((getState(x - 1, y) != BoardState::NONE && getState(x - 1, y) != BoardState::BORDER) ||
-			(getState(x + 1, y) != BoardState::NONE && getState(x + 1, y) != BoardState::BORDER) ||
-			(getState(x, y - 1) != BoardState::NONE && getState(x, y - 1) != BoardState::BORDER) ||
-			(getState(x, y + 1) != BoardState::NONE && getState(x, y + 1) != BoardState::BORDER) ||
-			(getState(x - 1, y + 1) != BoardState::NONE && getState(x - 1, y + 1) != BoardState::BORDER) ||
-			(getState(x + 1, y + 1) != BoardState::NONE && getState(x + 1, y + 1) != BoardState::BORDER) ||
-			(getState(x - 1, y - 1) != BoardState::NONE && getState(x - 1, y - 1) != BoardState::BORDER) ||
-			(getState(x + 1, y - 1) != BoardState::NONE && getState(x + 1, y - 1) != BoardState::BORDER)) {
+	bool hasNeighbor(int x, int y) noexcept{
+		if ((getState(x - 1, y) != NONE && getState(x - 1, y) != BORDER) ||
+			(getState(x + 1, y) != NONE && getState(x + 1, y) != BORDER) ||
+			(getState(x, y - 1) != NONE && getState(x, y - 1) != BORDER) ||
+			(getState(x, y + 1) != NONE && getState(x, y + 1) != BORDER) ||
+			(getState(x - 1, y + 1) != NONE && getState(x - 1, y + 1) != BORDER) ||
+			(getState(x + 1, y + 1) != NONE && getState(x + 1, y + 1) != BORDER) ||
+			(getState(x - 1, y - 1) != NONE && getState(x - 1, y - 1) != BORDER) ||
+			(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER)) {
 			return true;
 		}
 		return false;
 	}
-	bool hasNeighbor(int x, int y, BoardState s) {
+	bool hasNeighbor(int x, int y, BoardState s) noexcept{
 		if (getState(x - 1, y) == s || getState(x + 1, y) == s ||
 			getState(x, y - 1) == s || getState(x, y + 1) == s ||
 			getState(x - 1, y + 1) == s || getState(x + 1, y + 1) == s ||
@@ -273,12 +311,21 @@ public:
 		}
 		return false;
 	}
-	vector<pair<int, int>> neighbors(int x, int y) {
-		return { {x - 1,y - 1},{x,y - 1},{x + 1,y - 1},{x - 1,y},{x + 1,y},{x - 1,y + 1},{x,y + 1},{x + 1,y + 1} };
+	unsigned neighborCount(int x, int y){
+		unsigned ret = 0;
+		if(getState(x - 1, y    ) != NONE && getState(x - 1, y    ) != BORDER) ret++;
+		if(getState(x + 1, y    ) != NONE && getState(x + 1, y    ) != BORDER) ret++;
+		if(getState(x    , y - 1) != NONE && getState(x    , y - 1) != BORDER) ret++;
+		if(getState(x    , y + 1) != NONE && getState(x    , y + 1) != BORDER) ret++;
+		if(getState(x - 1, y + 1) != NONE && getState(x - 1, y + 1) != BORDER) ret++;
+		if(getState(x + 1, y + 1) != NONE && getState(x + 1, y + 1) != BORDER) ret++;
+		if(getState(x - 1, y - 1) != NONE && getState(x - 1, y - 1) != BORDER) ret++;
+		if(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER) ret++;
+		return ret;
 	}
 
-	bool checkX(int x, int y, unsigned a) {return evalPoint(x, y) >= a;}
-	bool checkEndgame(int x, int y) {return evalPoint(x, y) >= PIECES_FOR_WIN;}
+	inline bool checkX(int x, int y, unsigned a) noexcept{return evalPoint(x, y) >= a;}
+	inline bool checkEndgame(int x, int y) noexcept{return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
 	pair<bool,pair<int, int>> bot() {
 		vector<pair<int, int>> cs = vector<pair<int, int>>();
@@ -332,7 +379,7 @@ public:
 		//if no best move then random players neighbor
 		for (unsigned x = 0; x < state.size(); x++) {
 			for (unsigned y = 0; y < state[0].size(); y++) {
-				if(hasNeighbor(x, y, player)&&getState(x,y)==BoardState::NONE) {
+				if(hasNeighbor(x, y, player)&&getState(x,y)==NONE) {
 					cs.push_back({ x,y });
 				}
 			}
@@ -348,10 +395,10 @@ public:
 		return { true, {7 + (rand() % 3) - 1, 7 + (rand() % 3) - 1} };
 	}
 
-	string serialize() {
+	string serialize() noexcept{
 		string ret = "";
 		ret.append("PISQ 1\n");
-		if (moves.size() == 0) { throw exception(); }
+		if (moves.empty()) { printf("No moves were made. Cannot serialize the board.\n");return ret; }
 		for (pair<int,int> move : moves) {
 			char* str = new char[12];
 			snprintf(str, 12, "MOVE %d %d\n", move.first, move.second);
@@ -367,7 +414,7 @@ public:
 		return ret;
 	}
 
-	void deserialize(ifstream& in) {
+	void deserialize(ifstream& in) noexcept{
 		if (moves.size() >= 1) { printf("Game already started! Please restart.\n"); return; }
 
 		int version = 0;
@@ -407,81 +454,96 @@ public:
 		}
 	}
 
-	pair<signed, pair<int, int>> minimax(Board* b, signed depth, signed alpha, signed beta) {
-		Board b1 = *b;
-		if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
-		else if(depth>MM_DEPTH-3){ printf("%d", depth); }
-		if (b1.player == BoardState::X) {
-			signed score = -2561;
-			pair<int, int> best = { -1,-1 };
-			for (unsigned i = 0; i < b1.state.size(); i++) {
-				for (unsigned j = 0; j < b1.state[0].size(); j++) {
-					pair<signed,pair<int,int>> temp;
-					if (!b1.hasNeighbor(i, j)) { continue; }
-					Board b2 = *b;
-					if (!b2.setState(b2.player, i, j)) continue;
-					if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					temp = minimax(&b2, depth - 1, alpha, beta);
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					if (temp.first > score) {
-						score = temp.first;
-						minimax_skip_1:
-						best = { i,j };
-						if (score > beta) { return { score, best }; }
-						if (score >= 2500) { return { score, best }; }
-					}
-					alpha = max(alpha, score);
-				}
-			}
-			return { score, best };
-		}else if (b1.player == BoardState::O) {
-			signed score = 2561;
-			pair<int, int> best = { -1,-1 };
-			for (unsigned i = 0; i < b1.state.size(); i++) {
-				for (unsigned j = 0; j < b1.state[0].size(); j++) {
-					pair<signed,pair<int,int>> temp;
-					if (!b1.hasNeighbor(i, j)) { continue; }
-					Board b2 = *b;
-					if(!b2.setState(b2.player, i, j)) continue;
-					if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					temp = minimax(&b2, depth - 1, alpha, beta);
-					b2.player = (b2.player == BoardState::X) ? BoardState::O : BoardState::X;
-					if (temp.first < score) {
-						score = temp.first;
-						minimax_skip_2:
-						best = { i,j };
-						if (score < alpha) { return { score,best }; }
-						if (score <= -2500) { return { score,best }; }
-					}
-					beta = min(beta, score);
-					//score = min(score, minimax(&b2, depth-1));
-				}
-			}
-			return { score, best };
-		}
-		printf("Failed\n");
-		return { 0, { -1, -1 } };
-	}
-
-	vector<pair<int, int>> getMoves() {return moves;}
+	inline vector<pair<int, int>> getMoves() noexcept{return moves;}
 	
 private:
-	vector<vector<BoardState>> state;
+	array<array<BoardState,15>,15> state;
 	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
 
+template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, signed depth, signed alpha, signed beta) noexcept{
+	Board<W,H> b1 = *b;
+	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
+	else if(depth>MM_DEPTH-2){ printf("%d", depth); }
+	if (b1.player == X) {
+		signed score = -2561;
+		pair<int, int> best = { -1,-1 };
+		vector<pair<int,int>> poss = vector<pair<int,int>>();
+		for (unsigned i = 0; i < W; i++) {
+			for (unsigned j = 0; j < H; j++) {
+				if(!b1.hasNeighbor(i,j)||b1.getState(i,j)!=NONE){continue;}
+				poss.push_back({i,j});
+			}
+		}
+		sort(poss.begin(),poss.end(),[&](pair<int,int> p1,pair<int,int> p2){
+			return abs((signed)b1.neighborCount(p1.first,p1.second)-2) > abs((signed)b1.neighborCount(p2.first,p2.second)-2);//closer together
+		});
+		for (pair<int,int> pos : poss) {
+			pair<signed,pair<int,int>> temp;
+			Board<W,H> b2 = *b;
+			unsigned i = pos.first, j = pos.second;
+			b2.setState(b2.player, i, j);
+			if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
+			b2.player = n(b2.player);
+			temp = minimax(&b2, depth - 1, alpha, beta);
+			b2.player = n(b2.player);
+			if (temp.first > score) {
+				score = temp.first;
+				minimax_skip_1:
+				best = { i,j };
+				if (score > beta) { return { score, best }; }
+				if (score >= 2500) { return { score, best }; }
+			}
+			alpha = max(alpha, score);
+		}
+		return { score, best };
+	}else if (b1.player == O) {
+		signed score = 2561;
+		pair<int, int> best = { -1,-1 };
+		vector<pair<int,int>> poss = vector<pair<int,int>>();
+		for (unsigned i = 0; i < W; i++) {
+			for (unsigned j = 0; j < H; j++) {
+				if(!b1.hasNeighbor(i,j)||b1.getState(i,j)!=NONE){continue;}
+				poss.push_back({i,j});
+			}
+		}
+		sort(poss.begin(),poss.end(),[&](pair<int,int> p1,pair<int,int> p2){
+			return abs((signed)b1.neighborCount(p1.first,p1.second)-2) > abs((signed)b1.neighborCount(p2.first,p2.second)-2);//closer together
+		});
+		for (pair<int,int> pos : poss) {
+			pair<signed,pair<int,int>> temp;
+			Board<W,H> b2 = *b;
+			unsigned i = pos.first, j = pos.second;
+			b2.setState(b2.player, i, j);
+			if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
+			b2.player = n(b2.player);
+			temp = minimax(&b2, depth - 1, alpha, beta);
+			b2.player = n(b2.player);
+			if (temp.first < score) {
+				score = temp.first;
+				minimax_skip_2:
+				best = { i,j };
+				if (score < alpha) { return { score,best }; }
+				if (score <= -2500) { return { score,best }; }
+			}
+			beta = min(beta, score);
+		}
+		return { score, best };
+	}
+	printf("FATAL: Unexpected player\n");
+	return {-1,{-1,-1}};
+}
+
 int main() {
 	srand((unsigned)time(NULL));
-	int ww = 15, wh = 15;
-	Board board = Board(ww,wh);
+	const int ww = 15, wh = 15;
+	Board<ww,wh> board = Board<ww,wh>();
 
 	string in;
 	bool endgame = false;
 	while(!endgame) {
-		printf("Player %c is playing\n", board.s2c(board.player));
+		printf("Player %c is playing\n", s2c(board.player));
 		cout << board.window(ww, wh);
 		printf("Score: %d\n", board.evalBoard());
 		printf("Enter position('Y X'): ");
@@ -496,19 +558,24 @@ int main() {
 		}catch (const exception&) {
 			if (in.compare("end") == 0) { endgame = true; continue; }
 			if (in.compare("bot") == 0) {
-				pair<signed, pair<int, int>> result = board.minimax(&board, MM_DEPTH, -2560, 2560);
+				pair<signed, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
 				printf("Bot X%d Y%d\n",result.second.first,result.second.second);
 				continue;
 			} else if (in.compare("botm") == 0) {
-				pair<bool, pair<int, int>> result = board.minimax(&board, MM_DEPTH, -2560, 2560);
+				pair<bool, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
 				
 				a = result.second.first;//TODO: fix if windowing implemented
 				b = result.second.second;
 				goto skip;//...
 			}
 			if (in.compare("time") == 0) {
+				Board<15,15>* b = new Board<15,15>();
+				ifstream in;
+				in.open("perftest.pisq", ios::in);
+				b->deserialize(in);
+				in.close();
 				auto t1 = chrono::high_resolution_clock::now();
-				board.minimax(&board, MM_DEPTH, -2560, 2560);
+				minimax(b, MM_DEPTH, -2560, 2560);
 				auto t2 = chrono::high_resolution_clock::now();
 				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
 			}
@@ -541,32 +608,14 @@ int main() {
 			continue;
 		}
 		if (board.checkEndgame(x+a,y+b)) {
-			printf("Player %c wins!\n",board.s2c(board.player));
+			printf("Player %c wins!\n",s2c(board.player));
 			cout << board.window(ww, wh);
 			break;
 		}
-		board.player = Board::BoardState((uint8_t)board.player % 2 + 1);
+		board.player = n(board.player);
 		printf("Got position: %d %d\n",a,b);
 	}
 	while (!endgame) {
 		this_thread::sleep_for(1ms);
 	}
 }
-
-	/*function minimax(node, depth, maximizingPlayer) is
-	if depth = 0 or node is a terminal node then
-		return the heuristic value of node
-	if maximizingPlayer then
-		value := −∞
-		for each child of node do
-			value := max(value, minimax(child, depth − 1, FALSE))
-		return value
-	else (* minimizing player *)
-		value := +∞
-		for each child of node do
-			value := min(value, minimax(child, depth − 1, TRUE))
-		return value
-
-	(* Initial call *)
-	minimax(origin, depth, TRUE)
-*/
