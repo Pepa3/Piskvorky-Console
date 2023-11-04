@@ -10,7 +10,11 @@
 #include <chrono>
 #include <thread>
 //#include <format>
-constexpr unsigned MM_DEPTH = 6;//4 works  >5 is slow
+constexpr int MM_DEPTH = 6;//4 works  >5 is slow  even is better
+
+//TODO: move Board-independent code outside of Board class
+//TODO: mininax - improve evalPoint function
+//TODO: minimax - split node eval into collection of nodes and evaluation of nodes
 
 using namespace std;
 
@@ -78,7 +82,7 @@ public:
 		ret.append("   0 1 2 3 4 5 6 7 8 9 1011121314\n");
 		for (unsigned i = 0; i < w; i++) {
 			char* str = new char[4];
-			snprintf(str,4,"%3ld", i);
+			snprintf(str,4,"%3d", i);
 			ret.append(str);
 			delete[] str;
 			for (unsigned j = 0; j < h; j++) {
@@ -248,14 +252,14 @@ public:
 	}
 
 	bool hasNeighbor(int x, int y) {
-		if (getState(x - 1, y) != BoardState::NONE && getState(x - 1, y) != BoardState::BORDER ||
-			getState(x + 1, y) != BoardState::NONE && getState(x + 1, y) != BoardState::BORDER ||
-			getState(x, y - 1) != BoardState::NONE && getState(x, y - 1) != BoardState::BORDER ||
-			getState(x, y + 1) != BoardState::NONE && getState(x, y + 1) != BoardState::BORDER ||
-			getState(x - 1, y + 1) != BoardState::NONE && getState(x - 1, y + 1) != BoardState::BORDER ||
-			getState(x + 1, y + 1) != BoardState::NONE && getState(x + 1, y + 1) != BoardState::BORDER ||
-			getState(x - 1, y - 1) != BoardState::NONE && getState(x - 1, y - 1) != BoardState::BORDER ||
-			getState(x + 1, y - 1) != BoardState::NONE && getState(x + 1, y - 1) != BoardState::BORDER) {
+		if ((getState(x - 1, y) != BoardState::NONE && getState(x - 1, y) != BoardState::BORDER) ||
+			(getState(x + 1, y) != BoardState::NONE && getState(x + 1, y) != BoardState::BORDER) ||
+			(getState(x, y - 1) != BoardState::NONE && getState(x, y - 1) != BoardState::BORDER) ||
+			(getState(x, y + 1) != BoardState::NONE && getState(x, y + 1) != BoardState::BORDER) ||
+			(getState(x - 1, y + 1) != BoardState::NONE && getState(x - 1, y + 1) != BoardState::BORDER) ||
+			(getState(x + 1, y + 1) != BoardState::NONE && getState(x + 1, y + 1) != BoardState::BORDER) ||
+			(getState(x - 1, y - 1) != BoardState::NONE && getState(x - 1, y - 1) != BoardState::BORDER) ||
+			(getState(x + 1, y - 1) != BoardState::NONE && getState(x + 1, y - 1) != BoardState::BORDER)) {
 			return true;
 		}
 		return false;
