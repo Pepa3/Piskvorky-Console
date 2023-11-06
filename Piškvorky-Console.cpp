@@ -4,17 +4,23 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <vector>
-#include <random>
-#include <string>
-#include <time.h>
+#include <bitset>
 #include <chrono>
+#include <string>
+#include <vector>
 #include <thread>
+#include <random>
+#include <time.h>
+#include <array>
 #include <list>
 //#include <format>
 constexpr int MM_DEPTH = 4;//4 works  >5 is slow  even is better
 
 using namespace std;
+//bitsets 1350 ms
+//array 1600 ms
+//TODO: console flushing on linux
+//TODO: better bot progress reporting (percent)
 
 enum BoardState {
 	NONE, X, O, BORDER
@@ -41,7 +47,7 @@ char s2c(BoardState stat) noexcept{
 }
 
 array<pair<int, int>,8> neighbors(int x, int y) noexcept{
-	return { (pair<int,int>){x-1,y-1},{x,y-1},{x+1,y-1},{x-1,y},{x+1,y},{x-1,y+1},{x,y+1},{x+1,y+1} };
+	return { pair(x-1,y-1),{x,y-1},{x+1,y-1},{x-1,y},{x+1,y},{x-1,y+1},{x,y+1},{x+1,y+1} };
 }
 
 template<size_t W, size_t H> class Board {
@@ -49,14 +55,17 @@ public:
 	BoardState player;
 	const unsigned PIECES_FOR_WIN = 5;
 
-	Board(BoardState defval=BoardState(0)){
-		state = {{defval}};
+	Board(){
+		state = {{NONE}};
+		//stateX = 0;
+		//stateO = 0;
 		center = {W/2, H/2};
 		player = BoardState(1);
 	}
 
-	BoardState getState(unsigned x, unsigned y) noexcept{
-		if (x>state.size()-1 || y> state[0].size()-1 || ((signed)x) < 0 || ((signed)y) < 0) return BORDER;
+	inline BoardState getState(unsigned x, unsigned y) noexcept{
+		if (x>=W || y>=H || ((signed)x) < 0 || ((signed)y) < 0) return BORDER;
+		//return (BoardState)(stateX[x + y * W] + stateO[x + y * W] * 2);
 		return state[x][y];
 	}
 	
@@ -66,6 +75,11 @@ public:
 
 	bool setState(BoardState s, int x, int y) noexcept{
 		if (getState(x,y) == NONE) {
+			/*if (s == X) {
+				stateX[x + y * W] = 1;
+			}else if(s==O){
+				stateO[x + y * W] = 1;
+			}*/
 			state[x][y] = s;
 			moves.push_back({ x, y });
 			return true;
@@ -87,7 +101,7 @@ public:
 			snprintf(str,5,"%3d ", i);
 			ret.append(str);
 			for (unsigned j = 0; j < h; j++) {
-				ret.append({ s2c(state[x+i][y+j])});
+				ret.append({ s2c(getState(x+i,y+j))});
 				ret.append(" ");
 			}
 			ret.append("\n");
@@ -133,10 +147,51 @@ public:
 			throw exception();
 		}
 	}
-	unsigned evalPointB(unsigned x, unsigned y) noexcept{
+	unsigned evalPointB(signed x, signed y) noexcept{//TODO: try evalPoint with bitsets ?
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 0, dy = 0, dxy = 0, dmxy = 0;
+		/*if (cur == X) {
+			for (signed i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+				if (x + i >= W || y + i >= H || x - i < 0 || y - i < 0)break;
+				pxy &=  stateX[x + i+ (y    )*W];
+				pxpy &= stateX[x + i+ (y + i)*W];
+				xpy &=  stateX[x    + (y + i)*W];
+				mxpy &= stateX[x - i+ (y + i)*W];
+				mxy &=  stateX[x - i+ (y    )*W];
+				mxmy &= stateX[x - i+ (y - i)*W];
+				xmy &=  stateX[x    + (y - i)*W];
+				pxmy &= stateX[x + i+ (y - i)*W];
+				dx += pxy;
+				dx += mxy;
+				dy += xmy;
+				dy += xpy;
+				dxy += pxpy;
+				dxy += mxmy;
+				dmxy += pxmy;
+				dmxy += mxpy;
+			}
+		}else if(cur==O){
+			for (signed i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+				if (x + i >= W || y + i >= H || x - i < 0 || y - i < 0)break;
+				pxy &=  stateO[x + i+ (y)*W];
+				pxpy &= stateO[x + i+ (y + i) * W];
+				xpy &=  stateO[x+ (y + i) * W];
+				mxpy &= stateO[x - i+ (y + i) * W];
+				mxy &=  stateO[x - i+ (y)*W];
+				mxmy &= stateO[x - i+ (y - i) * W];
+				xmy &=  stateO[x    +(y - i) * W];
+				pxmy &= stateO[x + i+ (y - i) * W];
+				dx += pxy;
+				dx += mxy;
+				dy += xmy;
+				dy += xpy;
+				dxy += pxpy;
+				dxy += mxmy;
+				dmxy += pxmy;
+				dmxy += mxpy;
+			}
+		}*/
 		for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 			pxy &= (getState(x + i, y) == cur);
 			pxpy &= (getState(x + i, y + i) == cur);
@@ -146,14 +201,14 @@ public:
 			mxmy &= (getState(x - i, y - i) == cur);
 			xmy &= (getState(x, y - i) == cur);
 			pxmy &= (getState(x + i, y - i) == cur);
-			if (pxy) dx++;
-			if (mxy) dx++;
-			if (xmy) dy++;
-			if (xpy) dy++;
-			if (pxpy) dxy++;
-			if (mxmy) dxy++;
-			if (pxmy) dmxy++;
-			if (mxpy) dmxy++;
+			dx   += pxy;
+			dx   += mxy;
+			dy   += xmy;
+			dy   += xpy;
+			dxy  += pxpy;
+			dxy  += mxmy;
+			dmxy += pxmy;
+			dmxy += mxpy;
 		}
 		return dx+dy+dxy+dmxy;
 	}
@@ -278,8 +333,8 @@ public:
 
 	signed evalBoard() {
 		signed score = 0;
-		for (unsigned i = 0; i < state.size(); i++){
-			for (unsigned j = 0; j < state[0].size(); j++){
+		for (unsigned i = 0; i < W; i++){
+			for (unsigned j = 0; j < H; j++){
 				signed tmp = evalPointB1(i, j);
 				//if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }//dont check endgame in here, use checkEndgame() before call to this function
 				//if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
@@ -327,74 +382,6 @@ public:
 	inline bool checkX(int x, int y, unsigned a) noexcept{return evalPoint(x, y) >= a;}
 	inline bool checkEndgame(int x, int y) noexcept{return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
-	pair<bool,pair<int, int>> bot() {
-		vector<pair<int, int>> cs = vector<pair<int, int>>();
-		//-------Defensive Moves-------
-		//Check only interesting stones
-		for (unsigned x = 0; x < state.size(); x++){
-			for (unsigned y = 0; y < state[0].size(); y++){
-				if (getState(x, y) == n(player)) cs.push_back({x,y});
-			}
-		}
-		//defend if neccessary
-		for (pair<int,int> c : cs){
-			auto tmp = evalLineBlocked(c.first, c.second, false);
-			if (tmp.first) { printf("Defense\n"); return tmp; }
-		}
-		cs.clear();
-		/*
-		* . . . . .
-		* . . O . .
-		* . . . O .
-		* X O O O ?
-		* . . . . .
-		*/
-		for (unsigned x = 0; x < state.size(); x++) {
-			for (unsigned y = 0; y < state[0].size(); y++) {
-				Board* b = new Board(*this);
-				if(!b->setState(player,x,y)) {delete b; continue;}//TODO: merge ifs
-				if(b->evalPoint(x, y) != 4) {delete b; continue;}
-				if(b->evalLineBlocked(x, y, false).first) {
-					printf("Found a trap!\n");//Doesn't work!
-					delete b;
-					return { true, {x, y} };
-				}
-				delete b;
-			}
-		}
-		//-------Offensive Moves-------
-		//Check only interesting stones
-		for (unsigned x = 0; x < state.size(); x++) {
-			for (unsigned y = 0; y < state[0].size(); y++) {
-				if (getState(x, y) == player) cs.push_back({ x,y });
-			}
-		}
-		//find the best move
-		for (pair<int, int> c : cs) {
-			auto tmp = evalLineBlocked(c.first, c.second,true);
-			if (tmp.first) { printf("Offense - auto\n"); return tmp; }
-		}
-		cs.clear();
-
-		//if no best move then random players neighbor
-		for (unsigned x = 0; x < state.size(); x++) {
-			for (unsigned y = 0; y < state[0].size(); y++) {
-				if(hasNeighbor(x, y, player)&&getState(x,y)==NONE) {
-					cs.push_back({ x,y });
-				}
-			}
-		}
-		if (cs.size() > 0) {
-			printf("Offense - random\n");
-			int i = rand() % cs.size();
-			return { true,cs.at(i) };
-		}
-
-		printf("First move.\n");
-		//TODO:opening
-		return { true, {7 + (rand() % 3) - 1, 7 + (rand() % 3) - 1} };
-	}
-
 	string serialize() noexcept{
 		string ret = "";
 		ret.append("PISQ 1\n");
@@ -405,9 +392,9 @@ public:
 			ret.append(str);
 		}
 		ret.append("CHECK ");
-		for (unsigned i = 0; i < state.size(); i++) {
-			for (unsigned j = 0; j < state[0].size(); j++) {
-				ret.append({ s2c(state[i][j]) });
+		for (unsigned i = 0; i < W; i++) {
+			for (unsigned j = 0; j < H; j++) {
+				ret.append({ s2c(getState(i,j)) });
 			}
 		}
 		ret.append("\n");
@@ -442,9 +429,9 @@ public:
 			setState(player, x, y);
 			player = n(player);
 		}
-		for (unsigned i = 0; i < state.size(); i++) {
-			for (unsigned j = 0; j < state[0].size(); j++) {
-				char s = s2c(state[i][j]);
+		for (unsigned i = 0; i < W; i++) {
+			for (unsigned j = 0; j < H; j++) {
+				char s = s2c(getState(i,j));
 				char s2 = line.at(6+j+i*15);
 				if (s != s2) {
 					printf("Checking failed, found inconsistency in PISQ file.\n");
@@ -457,15 +444,18 @@ public:
 	inline vector<pair<int, int>> getMoves() noexcept{return moves;}
 	
 private:
-	array<array<BoardState,15>,15> state;
+	array<array<BoardState,W>,H> state;
+	//bitset<W*H> stateX;
+	//bitset<W*H> stateO;
 	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
 
+const int N = 2;
+
 template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, signed depth, signed alpha, signed beta) noexcept{
 	Board<W,H> b1 = *b;
 	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
-	else if(depth>MM_DEPTH-2){ printf("%d", depth); }
 	if (b1.player == X) {
 		signed score = -2561;
 		pair<int, int> best = { -1,-1 };
@@ -476,10 +466,15 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 				poss.push_back({i,j});
 			}
 		}
-		sort(poss.begin(),poss.end(),[&](pair<int,int> p1,pair<int,int> p2){
-			return abs((signed)b1.neighborCount(p1.first,p1.second)-2) > abs((signed)b1.neighborCount(p2.first,p2.second)-2);//closer together
+		/*sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
+			return b1.neighborCount(p1.first,p1.second) > b1.neighborCount(p2.first,p2.second);//closer together
+		});*/
+		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
+			return abs((signed)b1.neighborCount(p1.first, p1.second) - N) > abs((signed)b1.neighborCount(p2.first, p2.second) - N);//closer together
 		});
+		unsigned count = 0;
 		for (pair<int,int> pos : poss) {
+			if (depth == MM_DEPTH) { printf("%d/%d ", count, poss.size()); count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
@@ -492,7 +487,7 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 				score = temp.first;
 				minimax_skip_1:
 				best = { i,j };
-				if (score > beta) { return { score, best }; }
+				if (score >= beta) { return { score, best }; }
 				if (score >= 2500) { return { score, best }; }
 			}
 			alpha = max(alpha, score);
@@ -508,10 +503,12 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 				poss.push_back({i,j});
 			}
 		}
-		sort(poss.begin(),poss.end(),[&](pair<int,int> p1,pair<int,int> p2){
-			return abs((signed)b1.neighborCount(p1.first,p1.second)-2) > abs((signed)b1.neighborCount(p2.first,p2.second)-2);//closer together
+		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
+			return abs((signed)b1.neighborCount(p1.first, p1.second) - N) > abs((signed)b1.neighborCount(p2.first, p2.second) - N);//closer together
 		});
-		for (pair<int,int> pos : poss) {
+		unsigned count = 0;
+		for (pair<int, int> pos : poss) {
+			if (depth == MM_DEPTH) { printf("%d/%d ", count, poss.size()); count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
@@ -524,7 +521,7 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 				score = temp.first;
 				minimax_skip_2:
 				best = { i,j };
-				if (score < alpha) { return { score,best }; }
+				if (score <= alpha) { return { score,best }; }
 				if (score <= -2500) { return { score,best }; }
 			}
 			beta = min(beta, score);
@@ -543,7 +540,7 @@ int main() {
 	string in;
 	bool endgame = false;
 	while(!endgame) {
-		printf("Player %c is playing\n", s2c(board.player));
+		printf("Player %cs turn\n", s2c(board.player));
 		cout << board.window(ww, wh);
 		printf("Score: %d\n", board.evalBoard());
 		printf("Enter position('Y X'): ");
@@ -552,48 +549,51 @@ int main() {
 		std::string tok1 = in.substr(0, del);
 		std::string tok2 = in.substr(del + 1, in.length());
 		int a = -1, b = -1;
+		if (in.compare("end") == 0) { endgame = true; continue; }
+		if (in.compare("bot") == 0) {
+			pair<signed, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
+			printf("Bot X%d Y%d\n", result.second.first, result.second.second);
+			continue;
+		}else if (in.compare("botm") == 0) {
+			pair<bool, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
+
+			a = result.second.first;//TODO: fix if windowing implemented
+			b = result.second.second;
+			goto skip;//...
+		}
+		if (in.compare("time") == 0) {
+			Board<15, 15>* b1 = new Board<15, 15>();
+			ifstream ins;
+			ins.open("perftest.pisq", ios::in);
+			b1->deserialize(ins);
+			ins.close();
+			auto t1 = chrono::high_resolution_clock::now();
+			minimax(b1, MM_DEPTH, -2560, 2560);
+			auto t2 = chrono::high_resolution_clock::now();
+			cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
+			continue;
+		}
+		if (in.compare("save") == 0) {
+			ofstream out;
+			out.open("out.pisq", ios::out | ios::trunc);
+			out << board.serialize();
+			out.close();
+			printf("Saved to out.pisq\n");
+			continue;
+		}
+		else if (in.compare("load") == 0) {
+			ifstream ins;
+			ins.open("out.pisq", ios::in);
+			board.deserialize(ins);
+			ins.close();
+			printf("Read from out.pisq\n");
+			continue;
+		}
+
 		try	{
 			a = stoi(tok1);
 			b = stoi(tok2);
 		}catch (const exception&) {
-			if (in.compare("end") == 0) { endgame = true; continue; }
-			if (in.compare("bot") == 0) {
-				pair<signed, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
-				printf("Bot X%d Y%d\n",result.second.first,result.second.second);
-				continue;
-			} else if (in.compare("botm") == 0) {
-				pair<bool, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
-				
-				a = result.second.first;//TODO: fix if windowing implemented
-				b = result.second.second;
-				goto skip;//...
-			}
-			if (in.compare("time") == 0) {
-				Board<15,15>* b = new Board<15,15>();
-				ifstream in;
-				in.open("perftest.pisq", ios::in);
-				b->deserialize(in);
-				in.close();
-				auto t1 = chrono::high_resolution_clock::now();
-				minimax(b, MM_DEPTH, -2560, 2560);
-				auto t2 = chrono::high_resolution_clock::now();
-				cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
-			}
-			if (in.compare("save") == 0) {
-				ofstream out;
-				out.open("out.pisq", ios::out | ios::trunc);
-				out << board.serialize();
-				out.close();
-				printf("Saved to out.pisq\n");
-				continue;
-			}else if (in.compare("load") == 0) {
-				ifstream in;
-				in.open("out.pisq", ios::in);
-				board.deserialize(in);
-				in.close();
-				printf("Read from out.pisq\n");
-				continue;
-			}
 			printf("Error, please try again\n");
 			continue;
 		}
