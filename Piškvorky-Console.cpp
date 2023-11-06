@@ -227,14 +227,14 @@ public:
 			mxmy &= (getState(x - i, y - i) == cur);
 			xmy  &= (getState(x    , y - i) == cur);
 			pxmy &= (getState(x + i, y - i) == cur);
-			if (!pxy) { ends.push_back(x + i, y); };
-			if (!pxpy) { ends.push_back(x + i, y + i); };
-			if (!xpy) { ends.push_back(x, y + i); };
-			if (!mxpy) { ends.push_back(x - i, y + i); };
-			if (!mxy) { ends.push_back(x - i, y); };
-			if (!mxmy) { ends.push_back(x - i, y - i); };
-			if (!xmy) { ends.push_back(x, y - i); };
-			if (!pxmy) { ends.push_back(x + i, y - i); };
+			if (!pxy) { ends.push_back({ x + i, y }); };
+			if (!pxpy) { ends.push_back({ x + i, y + i }); };
+			if (!xpy) { ends.push_back({ x, y + i }); };
+			if (!mxpy) { ends.push_back({ x - i, y + i }); };
+			if (!mxy) { ends.push_back({ x - i, y }); };
+			if (!mxmy) { ends.push_back({ x - i, y - i }); };
+			if (!xmy) { ends.push_back({ x, y - i }); };
+			if (!pxmy) { ends.push_back({ x + i, y - i }); };
 		}
 		return ends;
 	}
