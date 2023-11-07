@@ -14,15 +14,22 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 7;//4 works  >5 is slow  even is better
+constexpr int MM_DEPTH = 6;//4 works  >5 is slow  8 is max 
+constexpr int N = 2;
+constexpr unsigned PIECES_FOR_WIN = 5;
 
 using namespace std;
-//array perf ~530000 ms
-//bitset perf ~430000 ms
-//bitsets 1350 ms
-//array 1600 ms
-//TODO: console flushing on linux
-//TODO: better bot progress reporting (percent)
+
+// 
+// perf abs(N-2)<abs(N-2) 86000  ms
+// 
+// perf neighbour cache   76000  ms
+// perf evalPoint cache   38500  ms
+// perf 7                 226000 ms
+// 
+// TODO: use lineEnds() to speed up minimax AB
+// TODO: console flushing on linux
+// TODO: better bot progress reporting (percent)
 
 enum BoardState {
 	NONE, X, O, BORDER
@@ -55,7 +62,6 @@ array<pair<int, int>,8> neighbours(int x, int y) noexcept{
 template<size_t W, size_t H> class Board {
 public:
 	BoardState player;
-	const unsigned PIECES_FOR_WIN = 5;
 
 	Board(){
 		stateX = 0;
@@ -81,6 +87,23 @@ public:
 				stateO[x + y * W] = 1;
 			}
 			moves.push_back({ x, y });
+			for (auto& pos : neighbours(x, y)) {
+				if (getState(pos.first, pos.second) == NONE) {
+					neighbourC[pos.first + pos.second * W]++;
+				}
+			}
+			evalP[x + y * W] = evalPointB(x,y);
+			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; evalP[a + b * W]++; };
+			for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+				f((x + i), (y    ));
+				f((x + i), (y + i));
+				f((x    ), (y + i));
+				f((x - i), (y + i));
+				f((x - i), (y    ));
+				f((x - i), (y - i));
+				f((x    ), (y - i));
+				f((x + i), (y - i));
+			}
 			return true;
 		} else {
 			return false;
@@ -109,7 +132,7 @@ public:
 		return ret;
 	}
 
-	unsigned evalPoint(unsigned x, unsigned y) noexcept{
+	unsigned evalPoint(unsigned x, unsigned y) noexcept {
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
@@ -132,19 +155,6 @@ public:
 			if (mxpy) dmxy++;
 		}
 		return max(max(dx,dy), max(dxy, dmxy));
-	}
-	//Black(X) = + ; White(O) = -
-	signed evalPoint1(unsigned x, unsigned y){
-		switch (getState(x,y)){
-		case NONE:
-			return 0;
-		case X:
-			return evalPoint(x, y);
-		case O:
-			return -(signed)evalPoint(x, y);
-		default:
-			throw exception();
-		}
 	}
 	unsigned evalPointB(signed x, signed y) noexcept{
 		BoardState cur = getState(x,y);
@@ -193,6 +203,7 @@ public:
 		}
 		return dx+dy+dxy+dmxy;
 	}
+	//Black(X) = + ; White(O) = -
 	signed evalPointB1(unsigned x, unsigned y){
 		switch (getState(x,y)){
 		case NONE:
@@ -201,6 +212,18 @@ public:
 			return evalPointB(x, y);
 		case O:
 			return -(signed)evalPointB(x, y);
+		default:
+			throw exception();
+		}
+	}
+	signed evalPointC1(unsigned x, unsigned y) {
+		switch (getState(x, y)) {
+		case NONE:
+			return 0;
+		case X:
+			return evalP[x+y*W];
+		case O:
+			return -(signed)evalP[x+y*W];
 		default:
 			throw exception();
 		}
@@ -243,10 +266,10 @@ public:
 		signed score = 0;
 		for (unsigned i = 0; i < W; i++) {
 			for (unsigned j = 0; j < H; j++){
-				signed tmp = evalPointB1(i, j);
+				score += evalPointC1(i, j);
 				//if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }//dont check endgame in here, use checkEndgame() before call to this function
 				//if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
-				score += tmp;
+				//score += tmp;
 			}
 		}
 		//score = stateX.count() - stateO.count();
@@ -275,17 +298,9 @@ public:
 		}
 		return false;
 	}
-	unsigned neighbourCount(int x, int y) noexcept{//bitset too slow
-		unsigned ret = 0;
-		if(getState(x - 1, y    ) != NONE && getState(x - 1, y    ) != BORDER) ret++;
-		if(getState(x + 1, y    ) != NONE && getState(x + 1, y    ) != BORDER) ret++;
-		if(getState(x    , y - 1) != NONE && getState(x    , y - 1) != BORDER) ret++;
-		if(getState(x    , y + 1) != NONE && getState(x    , y + 1) != BORDER) ret++;
-		if(getState(x - 1, y + 1) != NONE && getState(x - 1, y + 1) != BORDER) ret++;
-		if(getState(x + 1, y + 1) != NONE && getState(x + 1, y + 1) != BORDER) ret++;
-		if(getState(x - 1, y - 1) != NONE && getState(x - 1, y - 1) != BORDER) ret++;
-		if(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER) ret++;
-		return ret;
+	
+	unsigned neighbourCount(int x, int y) {
+		return neighbourC[x + y * W];
 	}
 
 	inline bool checkX(int x, int y, unsigned a) noexcept{return evalPoint(x, y) >= a;}
@@ -351,38 +366,46 @@ public:
 	}
 
 	inline vector<pair<int, int>> getMoves() noexcept{return moves;}
-	
+
 private:
 	bitset<W*H> stateX;
 	bitset<W*H> stateO;
+	array<unsigned, W*H> neighbourC = {0};
+	array<unsigned, W*H> evalP = {0};
 	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
 
-const int N = 2;
-
-template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, signed depth, signed alpha, signed beta) noexcept{
+template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
 	Board<W,H> b1 = *b;
 	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
 	if (b1.player == X) {
 		signed score = -2561;
 		pair<int, int> best = { -1,-1 };
 		vector<pair<int,int>> poss = vector<pair<int,int>>();
+		poss.reserve(40);
 		for (unsigned i = 0; i < W; i++) {
 			for (unsigned j = 0; j < H; j++) {
 				if(!b1.hasNeighbour(i,j)||b1.getState(i,j)!=NONE){continue;}
 				poss.push_back({i,j});
 			}
 		}
-		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
-			return b1.neighbourCount(p1.first,p1.second) > b1.neighbourCount(p2.first,p2.second);//closer together
-		});
 		/*sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
-			return abs((signed)b1.neighbourCount(p1.first, p1.second) - N) < abs((signed)b1.neighbourCount(p2.first, p2.second) - N);//mid
+			return b1.neighbourCount(p1.first,p1.second) < b1.neighbourCount(p2.first,p2.second);//closer together
 		});*/
+		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
+			return abs((signed)b1.neighbourCount(p1.first, p1.second) - N) < abs((signed)b1.neighbourCount(p2.first, p2.second) - N);//mid
+		});
+		/*auto lastMove = b1.getMoves().back();
+		//if(depth==MM_DEPTH)	printf("%d %d \n",lastMove.first,lastMove.second);
+		for (auto pos : neighbours(lastMove.first, lastMove.second)) {
+			if (b1.getState(pos.first, pos.second) == NONE) {
+				poss.insert(poss.begin(), pos);
+			}
+		}*/
 		unsigned count = 0;
 		for (pair<int,int> pos : poss) {
-			if (depth == MM_DEPTH) { printf("%d/%d ", count, poss.size()); count++; }
+			if (depth == MM_DEPTH) { printf("%u/%zu ", count, poss.size()); count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
@@ -405,6 +428,7 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 		signed score = 2561;
 		pair<int, int> best = { -1,-1 };
 		vector<pair<int,int>> poss = vector<pair<int,int>>();
+		poss.reserve(40);
 		for (unsigned i = 0; i < W; i++) {
 			for (unsigned j = 0; j < H; j++) {
 				if(!b1.hasNeighbour(i,j)||b1.getState(i,j)!=NONE){continue;}
@@ -412,11 +436,18 @@ template<size_t W,size_t H> pair<signed, pair<int, int>> minimax(Board<W,H>* b, 
 			}
 		}
 		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
-			return b1.neighbourCount(p1.first, p1.second) > b1.neighbourCount(p2.first, p2.second);//closer together
+			return abs((signed)b1.neighbourCount(p1.first, p1.second) - N) < abs((signed)b1.neighbourCount(p2.first, p2.second) - N);//mid
 		});
+		/*auto lastMove = b1.getMoves().back();
+		//if (depth == MM_DEPTH) printf("%d %d \n", lastMove.first, lastMove.second);
+		for (auto pos : neighbours(lastMove.first, lastMove.second)) {
+			if (b1.getState(pos.first, pos.second) == NONE) {
+				poss.insert(poss.begin(),pos);
+			}
+		} */
 		unsigned count = 0;
 		for (pair<int, int> pos : poss) {
-			if (depth == MM_DEPTH) { printf("%d/%d ", count, poss.size()); count++; }
+			if (depth == MM_DEPTH) { printf("%u/%zu ", count, poss.size()); count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
