@@ -14,7 +14,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 6;//4 works  >5 is slow  8 is max 
+constexpr int MM_DEPTH = 7;//6 works  >6 is slow  9 is max 
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
@@ -25,7 +25,11 @@ using namespace std;
 // 
 // perf neighbour cache   76000  ms
 // perf evalPoint cache   38500  ms
+// perf evalPoint signed  17000  ms
+// 
+// perf 7 signed          186000 ms
 // perf 7                 226000 ms
+// perf 7 extended        283000 ms
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: console flushing on linux
@@ -83,26 +87,38 @@ public:
 		if (getState(x,y) == NONE) {
 			if (s == X) {
 				stateX[x + y * W] = 1;
+				evalP[x + y * W] = evalPointB(x, y);
+				auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; evalP[a + b * W]++; };
+				for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+					f((x + i), (y));
+					f((x + i), (y + i));
+					f((x), (y + i));
+					f((x - i), (y + i));
+					f((x - i), (y));
+					f((x - i), (y - i));
+					f((x), (y - i));
+					f((x + i), (y - i));
+				}
 			}else if(s==O){
 				stateO[x + y * W] = 1;
+				evalP[x + y * W] = -(signed)evalPointB(x, y);
+				auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; evalP[a + b * W]--; };
+				for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+					f((x + i), (y));
+					f((x + i), (y + i));
+					f((x), (y + i));
+					f((x - i), (y + i));
+					f((x - i), (y));
+					f((x - i), (y - i));
+					f((x), (y - i));
+					f((x + i), (y - i));
+				}
 			}
 			moves.push_back({ x, y });
 			for (auto& pos : neighbours(x, y)) {
 				if (getState(pos.first, pos.second) == NONE) {
 					neighbourC[pos.first + pos.second * W]++;
 				}
-			}
-			evalP[x + y * W] = evalPointB(x,y);
-			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; evalP[a + b * W]++; };
-			for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
-				f((x + i), (y    ));
-				f((x + i), (y + i));
-				f((x    ), (y + i));
-				f((x - i), (y + i));
-				f((x - i), (y    ));
-				f((x - i), (y - i));
-				f((x    ), (y - i));
-				f((x + i), (y - i));
 			}
 			return true;
 		} else {
@@ -204,7 +220,7 @@ public:
 		return dx+dy+dxy+dmxy;
 	}
 	//Black(X) = + ; White(O) = -
-	signed evalPointB1(unsigned x, unsigned y){
+	/*signed evalPointB1(unsigned x, unsigned y) {
 		switch (getState(x,y)){
 		case NONE:
 			return 0;
@@ -215,18 +231,9 @@ public:
 		default:
 			throw exception();
 		}
-	}
-	signed evalPointC1(unsigned x, unsigned y) {
-		switch (getState(x, y)) {
-		case NONE:
-			return 0;
-		case X:
-			return evalP[x+y*W];
-		case O:
-			return -(signed)evalP[x+y*W];
-		default:
-			throw exception();
-		}
+	}*/
+	inline signed evalPointC1(unsigned x, unsigned y) {
+		return evalP[x+y*W];
 	}
 	/*
 		. . ? . . .
@@ -239,7 +246,7 @@ public:
 	vector<pair<int,int>> getLineEnds(int x, int y) {
 		BoardState cur = getState(x, y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
-		BoardState bpxy = cur, bpxpy = cur, bxpy = cur, bmxpy = cur, bmxy = cur, bmxmy = cur, bxmy = cur, bpxmy = cur;
+		bool bpxy = true, bpxpy = true, bxpy = true, bmxpy = true, bmxy = true, bmxmy = true, bxmy = true, bpxmy = true;
 		vector<pair<int,int>> ends = vector<pair<int,int>>(8);
 		for (unsigned i = 1; i <= 5; i++) {//px = v; py = ->
 			pxy  &= (getState(x + i, y    ) == cur);
@@ -250,14 +257,14 @@ public:
 			mxmy &= (getState(x - i, y - i) == cur);
 			xmy  &= (getState(x    , y - i) == cur);
 			pxmy &= (getState(x + i, y - i) == cur);
-			if (!pxy) { ends.push_back({ x + i, y }); };
-			if (!pxpy) { ends.push_back({ x + i, y + i }); };
-			if (!xpy) { ends.push_back({ x, y + i }); };
-			if (!mxpy) { ends.push_back({ x - i, y + i }); };
-			if (!mxy) { ends.push_back({ x - i, y }); };
-			if (!mxmy) { ends.push_back({ x - i, y - i }); };
-			if (!xmy) { ends.push_back({ x, y - i }); };
-			if (!pxmy) { ends.push_back({ x + i, y - i }); };
+			if (!pxy  && bpxy)  { ends.push_back({ x + i, y     }); bpxy=false;};
+			if (!pxpy && bpxpy) { ends.push_back({ x + i, y + i }); bpxpy =false;};
+			if (!xpy && bxpy) { ends.push_back({ x    , y + i });   bxpy =false;};
+			if (!mxpy && bmxpy) { ends.push_back({ x - i, y + i }); bmxpy =false;};
+			if (!mxy && bmxy) { ends.push_back({ x - i, y });       bmxy =false;};
+			if (!mxmy && bmxmy) { ends.push_back({ x - i, y - i }); bmxmy =false;};
+			if (!xmy && bxmy) { ends.push_back({ x    , y - i });   bxmy =false;};
+			if (!pxmy && bpxmy) { ends.push_back({ x + i, y - i }); bpxmy = false; };
 		}
 		return ends;
 	}
@@ -284,7 +291,15 @@ public:
 			(getState(x - 1, y + 1) != NONE && getState(x - 1, y + 1) != BORDER) ||
 			(getState(x + 1, y + 1) != NONE && getState(x + 1, y + 1) != BORDER) ||
 			(getState(x - 1, y - 1) != NONE && getState(x - 1, y - 1) != BORDER) ||
-			(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER)) {
+			(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER) ||
+			(getState(x - 2, y) != NONE && getState(x - 2, y) != BORDER) ||
+			(getState(x + 2, y) != NONE && getState(x + 2, y) != BORDER) ||
+			(getState(x, y - 2) != NONE && getState(x, y - 2) != BORDER) ||
+			(getState(x, y + 2) != NONE && getState(x, y + 2) != BORDER) ||
+			(getState(x - 2, y + 2) != NONE && getState(x - 2, y + 2) != BORDER) ||
+			(getState(x + 2, y + 2) != NONE && getState(x + 2, y + 2) != BORDER) ||
+			(getState(x - 2, y - 2) != NONE && getState(x - 2, y - 2) != BORDER) ||
+			(getState(x + 2, y - 2) != NONE && getState(x + 2, y - 2) != BORDER)) {
 			return true;
 		}
 		return false;
@@ -299,7 +314,7 @@ public:
 		return false;
 	}
 	
-	unsigned neighbourCount(int x, int y) {
+	inline unsigned neighbourCount(int x, int y) {
 		return neighbourC[x + y * W];
 	}
 
@@ -371,7 +386,7 @@ private:
 	bitset<W*H> stateX;
 	bitset<W*H> stateO;
 	array<unsigned, W*H> neighbourC = {0};
-	array<unsigned, W*H> evalP = {0};
+	array<signed, W*H> evalP = {0};
 	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
