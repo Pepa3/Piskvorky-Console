@@ -14,22 +14,30 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 7;//6 works  >6 is slow  9 is max 
+constexpr int MM_DEPTH = 6;//6 works  >6 is slow  9 is max 
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
 using namespace std;
 
+// perf 1                 1 ms
+// perf 2                 3 ms
+// perf 3                 12 ms
+// perf 4                 130 ms
+// perf 5                 1500 ms
+// perf 6                 15000 ms
+// perf 7                 207000 ms
+// perf 8                 3913000 ms
 // 
 // perf abs(N-2)<abs(N-2) 86000  ms
 // 
-// perf neighbour cache   76000  ms
-// perf evalPoint cache   38500  ms
 // perf evalPoint signed  17000  ms
+// perf                   22000  ms
+// perf hasNbour cache    15000  ms
 // 
 // perf 7 signed          186000 ms
-// perf 7                 226000 ms
-// perf 7 extended        283000 ms
+// perf 7 extended + opt  245000 ms
+// perf 7 hasNbour cache  205000 ms <-
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: console flushing on linux
@@ -70,6 +78,7 @@ public:
 	Board(){
 		stateX = 0;
 		stateO = 0;
+		hasNbour = 0;
 		center = {W/2, H/2};
 		player = BoardState(1);
 	}
@@ -116,10 +125,20 @@ public:
 			}
 			moves.push_back({ x, y });
 			for (auto& pos : neighbours(x, y)) {
-				if (getState(pos.first, pos.second) == NONE) {
+				if (getState(pos.first, pos.second) != BORDER) {
 					neighbourC[pos.first + pos.second * W]++;
+					hasNbour[pos.first + pos.second * W] = true;
 				}
 			}
+			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; hasNbour[a + b * W]=true; };
+			f((x - 2) , (y    ));
+			f((x + 2) , (y    ));
+			f((x    ) , (y - 2));
+			f((x    ) , (y + 2));
+			f((x - 2) , (y + 2));
+			f((x + 2) , (y + 2));
+			f((x - 2) , (y - 2));
+			f((x + 2) , (y - 2));
 			return true;
 		} else {
 			return false;
@@ -269,7 +288,7 @@ public:
 		return ends;
 	}
 
-	signed evalBoard() {
+	signed evalBoard() {//std::accumulate??
 		signed score = 0;
 		for (unsigned i = 0; i < W; i++) {
 			for (unsigned j = 0; j < H; j++){
@@ -284,25 +303,7 @@ public:
 	}
 
 	bool hasNeighbour(int x, int y) noexcept{
-		if ((getState(x - 1, y) != NONE && getState(x - 1, y) != BORDER) ||
-			(getState(x + 1, y) != NONE && getState(x + 1, y) != BORDER) ||
-			(getState(x, y - 1) != NONE && getState(x, y - 1) != BORDER) ||
-			(getState(x, y + 1) != NONE && getState(x, y + 1) != BORDER) ||
-			(getState(x - 1, y + 1) != NONE && getState(x - 1, y + 1) != BORDER) ||
-			(getState(x + 1, y + 1) != NONE && getState(x + 1, y + 1) != BORDER) ||
-			(getState(x - 1, y - 1) != NONE && getState(x - 1, y - 1) != BORDER) ||
-			(getState(x + 1, y - 1) != NONE && getState(x + 1, y - 1) != BORDER) ||
-			(getState(x - 2, y) != NONE && getState(x - 2, y) != BORDER) ||
-			(getState(x + 2, y) != NONE && getState(x + 2, y) != BORDER) ||
-			(getState(x, y - 2) != NONE && getState(x, y - 2) != BORDER) ||
-			(getState(x, y + 2) != NONE && getState(x, y + 2) != BORDER) ||
-			(getState(x - 2, y + 2) != NONE && getState(x - 2, y + 2) != BORDER) ||
-			(getState(x + 2, y + 2) != NONE && getState(x + 2, y + 2) != BORDER) ||
-			(getState(x - 2, y - 2) != NONE && getState(x - 2, y - 2) != BORDER) ||
-			(getState(x + 2, y - 2) != NONE && getState(x + 2, y - 2) != BORDER)) {
-			return true;
-		}
-		return false;
+		return hasNbour[x + y * W];
 	}
 	bool hasNeighbour(int x, int y, BoardState s) noexcept{
 		if (getState(x - 1, y) == s || getState(x + 1, y) == s ||
@@ -385,6 +386,7 @@ public:
 private:
 	bitset<W*H> stateX;
 	bitset<W*H> stateO;
+	bitset<W*H> hasNbour;
 	array<unsigned, W*H> neighbourC = {0};
 	array<signed, W*H> evalP = {0};
 	vector<pair<int, int>> moves;
