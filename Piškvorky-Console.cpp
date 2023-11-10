@@ -40,7 +40,6 @@ using namespace std;
 // perf 7 hasNbour cache  205000 ms <-
 // 
 // TODO: use lineEnds() to speed up minimax AB
-// TODO: console flushing on linux
 // TODO: better bot progress reporting (percent)
 
 enum BoardState {
@@ -422,7 +421,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 		}*/
 		unsigned count = 0;
 		for (pair<int,int> pos : poss) {
-			if (depth == MM_DEPTH) { printf("%u/%zu ", count, poss.size()); count++; }
+			if (depth == MM_DEPTH) { cout << count << "/" << poss.size() << " " << flush; count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
@@ -464,7 +463,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 		} */
 		unsigned count = 0;
 		for (pair<int, int> pos : poss) {
-			if (depth == MM_DEPTH) { printf("%u/%zu ", count, poss.size()); count++; }
+			if (depth == MM_DEPTH) { cout << count << "/" << poss.size() << " " << flush; count++; }
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
