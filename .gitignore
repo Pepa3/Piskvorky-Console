@@ -361,15 +361,3 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-
-#Old games
-games/*.txt
-
-#All pisq files
-*.pisq
-#except th perftest ones
-!perftest*.pisq
-
-#linux
-Piškvorky-Console
-build.sh
