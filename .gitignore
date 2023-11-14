@@ -370,6 +370,9 @@ games/*.txt
 #except th perftest ones
 !perftest*.pisq
 
-#linux
+#Linux
 Piškvorky-Console
 build.sh
+
+#windows
+*.diagsession
