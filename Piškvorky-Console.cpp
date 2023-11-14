@@ -28,6 +28,7 @@ using namespace std;
 // perf 6                 15000 ms
 // perf 7                 207000 ms
 // perf 8                 3913000 ms
+// perf x ~= 2*x*10^(x-2)
 // 
 // perf abs(N-2)<abs(N-2) 86000  ms
 // 
@@ -77,7 +78,6 @@ public:
 	Board(){
 		stateX = 0;
 		stateO = 0;
-		hasNbour = 0;
 		center = {W/2, H/2};
 		player = BoardState(1);
 	}
@@ -126,10 +126,9 @@ public:
 			for (auto& pos : neighbours(x, y)) {
 				if (getState(pos.first, pos.second) != BORDER) {
 					neighbourC[pos.first + pos.second * W]++;
-					hasNbour[pos.first + pos.second * W] = true;
 				}
 			}
-			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; hasNbour[a + b * W]=true; };
+			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; neighbourC[a + b * W]++; };
 			f((x - 2) , (y    ));
 			f((x + 2) , (y    ));
 			f((x    ) , (y - 2));
@@ -302,7 +301,7 @@ public:
 	}
 
 	bool hasNeighbour(int x, int y) noexcept{
-		return hasNbour[x + y * W];
+		return neighbourC[x + y * W]>0;
 	}
 	bool hasNeighbour(int x, int y, BoardState s) noexcept{
 		if (getState(x - 1, y) == s || getState(x + 1, y) == s ||
@@ -385,7 +384,6 @@ public:
 private:
 	bitset<W*H> stateX;
 	bitset<W*H> stateO;
-	bitset<W*H> hasNbour;
 	array<unsigned, W*H> neighbourC = {0};
 	array<signed, W*H> evalP = {0};
 	vector<pair<int, int>> moves;
