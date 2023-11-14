@@ -14,38 +14,28 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 6;//6 works  >6 is slow  9 is max 
+constexpr int MM_DEPTH = 3;//6 works  >6 is slow  9 is max 
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
 using namespace std;
 
-// perf 1                 1 ms
-// perf 2                 3 ms
-// perf 3                 12 ms
-// perf 4                 130 ms
-// perf 5                 1500 ms
-// perf 6                 15000 ms
-// perf 7                 207000 ms
-// perf 8                 3913000 ms
 // 
-// perf abs(N-2)<abs(N-2) 86000  ms
+// perf = long game until win
+// perf 5                       12000  ms
+// perf 6                       230000 ms
 // 
-// perf evalPoint signed  17000  ms
-// perf                   22000  ms
-// perf hasNbour cache    15000  ms
 // 
-// perf 7 signed          186000 ms
-// perf 7 extended + opt  245000 ms
-// perf 7 hasNbour cache  205000 ms <-
+// one-move win =               K*neighbourC
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: better bot progress reporting (percent)
 
+
 enum BoardState {
 	NONE, X, O, BORDER
 };
-	
+
 BoardState n(BoardState a) noexcept{
 	if (a == NONE || a == BORDER) printf("FATAL: Unknown player\n");
 	return (a == X) ? O : X;
@@ -124,7 +114,7 @@ public:
 			}
 			moves.push_back({ x, y });
 			for (auto& pos : neighbours(x, y)) {
-				if (getState(pos.first, pos.second) != BORDER) {
+				if (getState(pos.first, pos.second) != BORDER) {//Cannot use neighbourC>0 as hasNbour because its slower
 					neighbourC[pos.first + pos.second * W]++;
 					hasNbour[pos.first + pos.second * W] = true;
 				}
@@ -159,6 +149,23 @@ public:
 			for (unsigned j = 0; j < h; j++) {
 				ret.append({ s2c(getState(x+i,y+j))});
 				ret.append(" ");
+			}
+			ret.append("\n");
+		}
+		delete[] str;
+		return ret;
+	}
+
+	string debug() {
+		string ret = "";
+		ret.append("    0 1 2 3 4 5 6 7 8 9 1011121314\n");
+		char* str = new char[5];
+		for (unsigned i = 0; i < W; i++) {
+			snprintf(str, 5, "%3d ", i);
+			ret.append(str);
+			for (unsigned j = 0; j < H; j++) {
+				ret.append(hasNeighbour(i, j) ? to_string(neighbourCount(i, j)) : string(1,'.'));
+				ret.append({' '});
 			}
 			ret.append("\n");
 		}
@@ -292,9 +299,6 @@ public:
 		for (unsigned i = 0; i < W; i++) {
 			for (unsigned j = 0; j < H; j++){
 				score += evalPointC1(i, j);
-				//if (tmp >= (signed)PIECES_FOR_WIN) { return 2561; }//dont check endgame in here, use checkEndgame() before call to this function
-				//if (tmp <= -(signed)PIECES_FOR_WIN) { return -2561; }
-				//score += tmp;
 			}
 		}
 		//score = stateX.count() - stateO.count();
@@ -339,7 +343,6 @@ public:
 		ret.append("\n");
 		return ret;
 	}
-
 	void deserialize(ifstream& in) noexcept{
 		if (moves.size() >= 1) { printf("Game already started! Please restart.\n"); return; }
 
@@ -419,6 +422,15 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 				poss.insert(poss.begin(), pos);
 			}
 		}*/
+		for (pair<int, int> pos : poss) {
+			Board<W, H> b2 = *b;
+			unsigned i = pos.first, j = pos.second;
+			b2.setState(b2.player, i, j);
+			if (b2.checkEndgame(i, j)) {
+				best = { i,j };
+				return { score, best };
+			}
+		}
 		unsigned count = 0;
 		for (pair<int,int> pos : poss) {
 			if (depth == MM_DEPTH) { cout << count << "/" << poss.size() << " " << flush; count++; }
@@ -454,13 +466,15 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 		sort(poss.begin(), poss.end(), [&](pair<int, int> p1, pair<int, int> p2) {
 			return abs((signed)b1.neighbourCount(p1.first, p1.second) - N) < abs((signed)b1.neighbourCount(p2.first, p2.second) - N);//mid
 		});
-		/*auto lastMove = b1.getMoves().back();
-		//if (depth == MM_DEPTH) printf("%d %d \n", lastMove.first, lastMove.second);
-		for (auto pos : neighbours(lastMove.first, lastMove.second)) {
-			if (b1.getState(pos.first, pos.second) == NONE) {
-				poss.insert(poss.begin(),pos);
+		for (pair<int, int> pos : poss) {
+			Board<W, H> b2 = *b;
+			unsigned i = pos.first, j = pos.second;
+			b2.setState(b2.player, i, j);
+			if (b2.checkEndgame(i, j)) {
+				best = { i,j };
+				return { score, best };
 			}
-		} */
+		}
 		unsigned count = 0;
 		for (pair<int, int> pos : poss) {
 			if (depth == MM_DEPTH) { cout << count << "/" << poss.size() << " " << flush; count++; }
@@ -535,13 +549,16 @@ int main() {
 			out.close();
 			printf("Saved to out.pisq\n");
 			continue;
-		}
-		else if (in.compare("load") == 0) {
+		}else if (in.compare("load") == 0) {
 			ifstream ins;
 			ins.open("out.pisq", ios::in);
 			board.deserialize(ins);
 			ins.close();
 			printf("Read from out.pisq\n");
+			continue;
+		}
+		if (in.compare("debug") == 0) {
+			cout << board.debug();
 			continue;
 		}
 
