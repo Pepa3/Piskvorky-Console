@@ -14,7 +14,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 3;//6 works  >6 is slow  9 is max 
+constexpr int MM_DEPTH = 6;//6 works  >6 is slow  9 is max 
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
@@ -22,11 +22,11 @@ using namespace std;
 
 // 
 // perf = long game until win
-// perf 5                       12000  ms
-// perf 6                       230000 ms
+// perf 5                       36000  ms
+// perf 6                       long
 // 
 // 
-// one-move win =               K*neighbourC
+// one-move win =               ~10 ms
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: better bot progress reporting (percent)
@@ -428,7 +428,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 			b2.setState(b2.player, i, j);
 			if (b2.checkEndgame(i, j)) {
 				best = { i,j };
-				return { score, best };
+				return { -score, best };
 			}
 		}
 		unsigned count = 0;
@@ -472,7 +472,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 			b2.setState(b2.player, i, j);
 			if (b2.checkEndgame(i, j)) {
 				best = { i,j };
-				return { score, best };
+				return { -score, best };
 			}
 		}
 		unsigned count = 0;
@@ -541,6 +541,7 @@ int main() {
 			auto t2 = chrono::high_resolution_clock::now();
 			cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
 			continue;
+		}else if (in.compare("test") == 0) {
 		}
 		if (in.compare("save") == 0) {
 			ofstream out;
