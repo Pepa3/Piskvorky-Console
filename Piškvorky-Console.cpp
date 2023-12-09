@@ -30,6 +30,7 @@ using namespace std;
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: better bot progress reporting (percent)
+// TODO: accuraccy tests
 
 
 enum BoardState {
