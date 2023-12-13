@@ -1,5 +1,8 @@
 ﻿// Piškvorky-Console.cpp
 
+
+#include <unordered_map>
+#include <functional>
 #include <algorithm>
 #include <iostream>
 #include <fstream>
@@ -14,7 +17,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 6;//6 works  >6 is slow  9 is max 
+constexpr int MM_DEPTH = 5;//6 works  >6 is slow  9 is max 
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
@@ -38,7 +41,7 @@ enum BoardState {
 };
 
 BoardState n(BoardState a) noexcept{
-	if (a == NONE || a == BORDER) printf("FATAL: Unknown player\n");
+	if (a != X && a != O) printf("FATAL: Unknown player\n");
 	return (a == X) ? O : X;
 }
 
@@ -69,8 +72,12 @@ public:
 		stateX = 0;
 		stateO = 0;
 		hasNbour = 0;
+		neighbourC = {0};
+		evalP = {0};
+		moves = vector<pair<int,int>>();
 		center = {W/2, H/2};
 		player = BoardState(1);
+		positions = unordered_map<size_t, bool>();
 	}
 
 	inline BoardState getState(unsigned x, unsigned y) noexcept{
@@ -114,6 +121,7 @@ public:
 				}
 			}
 			moves.push_back({ x, y });
+			positions[hash()] = true;//TODO: add debug output
 			for (auto& pos : neighbours(x, y)) {
 				if (getState(pos.first, pos.second) != BORDER) {//Cannot use neighbourC>0 as hasNbour because its slower
 					neighbourC[pos.first + pos.second * W]++;
@@ -326,6 +334,15 @@ public:
 	inline bool checkX(int x, int y, unsigned a) noexcept{return evalPoint(x, y) >= a;}
 	inline bool checkEndgame(int x, int y) noexcept{return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
+	size_t hash() {
+		size_t a = std::hash<bitset<W*H>>()(stateX);
+		size_t b = std::hash<bitset<W*H>>()(stateO);
+		size_t A = a >= 0 ? 2 * a : -2 * a - 1;
+		size_t B = b >= 0 ? 2 * b : -2 * b - 1;
+		size_t C = (A >= B ? A * A + A + B : A + B * B) / 2;
+		return a < 0 && b < 0 || a >= 0 && b >= 0 ? C : -C - 1;
+	}
+
 	string serialize() noexcept{
 		string ret = "";
 		ret.append("PISQ 1\n");
@@ -390,8 +407,9 @@ private:
 	bitset<W*H> stateX;
 	bitset<W*H> stateO;
 	bitset<W*H> hasNbour;
-	array<unsigned, W*H> neighbourC = {0};
-	array<signed, W*H> evalP = {0};
+	unordered_map<size_t, bool> positions;
+	array<unsigned, W*H> neighbourC;
+	array<signed, W*H> evalP;
 	vector<pair<int, int>> moves;
 	pair<int, int> center;
 };
