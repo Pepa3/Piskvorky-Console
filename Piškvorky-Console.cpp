@@ -33,7 +33,8 @@ using namespace std;
 // 
 // TODO: use lineEnds() to speed up minimax AB
 // TODO: better bot progress reporting (percent)
-// TODO: accuraccy tests
+// TODO: accuracy tests
+// TODO: automatic playing through CLI, ./Piskvorky game.pisq => Bot: 4, 6
 
 
 enum BoardState {
