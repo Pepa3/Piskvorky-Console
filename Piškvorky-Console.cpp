@@ -17,7 +17,8 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 5;//6 works  >6 is slow  9 is max 
+constexpr int MM_DEPTH = 5;//5 doesn't work; 6 is slow => 4
+//odd loses in midgame; even loses in earlygame but is accurate in midgame
 constexpr int N = 2;
 constexpr unsigned PIECES_FOR_WIN = 5;
 
@@ -25,8 +26,8 @@ using namespace std;
 
 // 
 // perf = long game until win
-// perf 5                       36000  ms
-// perf 6                       long
+// perf 5                       2000  ms
+// perf 6                       22000 ms
 // 
 // 
 // one-move win =               ~10 ms
@@ -65,7 +66,7 @@ array<pair<int, int>,8> neighbours(int x, int y) noexcept{
 	return { pair(x-1,y-1),{x,y-1},{x+1,y-1},{x-1,y},{x+1,y},{x-1,y+1},{x,y+1},{x+1,y+1} };
 }
 
-template<size_t W, size_t H> class Board {
+template<unsigned W, unsigned H> class Board {
 public:
 	BoardState player;
 
@@ -85,10 +86,14 @@ public:
 		if (x>=W || y>=H || ((signed)x) < 0 || ((signed)y) < 0) return BORDER;
 		return (BoardState)(stateX[x + y * W] + stateO[x + y * W] * 2);
 	}
-	
-	inline bool isX(unsigned x, unsigned y) noexcept{ return getState(x, y) == X; }
-	inline bool isO(unsigned x, unsigned y) noexcept{ return getState(x, y) == O; }
-	inline bool isXO(unsigned x, unsigned y) noexcept{ return getState(x, y) != NONE; }
+	inline bool getStateX(unsigned x, unsigned y) noexcept {
+		if (x >= W || y >= H || ((signed)x) < 0 || ((signed)y) < 0) return false;
+		return stateX[x + y * W];
+	}
+	inline bool getStateO(unsigned x, unsigned y) noexcept {
+		if (x >= W || y >= H || ((signed)x) < 0 || ((signed)y) < 0) return false;
+		return stateO[x + y * W];
+	}
 
 	bool setState(BoardState s, int x, int y) noexcept{
 		if (getState(x,y) == NONE) {
@@ -122,7 +127,7 @@ public:
 				}
 			}
 			moves.push_back({ x, y });
-			positions[hash()] = true;//TODO: add debug output
+			//positions[hash()] = true;//TODO: add debug output
 			for (auto& pos : neighbours(x, y)) {
 				if (getState(pos.first, pos.second) != BORDER) {//Cannot use neighbourC>0 as hasNbour because its slower
 					neighbourC[pos.first + pos.second * W]++;
@@ -187,24 +192,44 @@ public:
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
+		if (cur == X) {
+			for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+				pxy &= getStateX(x + i, y);
+				pxpy &= getStateX(x + i, y + i);
+				xpy &= getStateX(x, y + i);
+				mxpy &= getStateX(x - i, y + i);
+				mxy &= getStateX(x - i, y);
+				mxmy &= getStateX(x - i, y - i);
+				xmy &= getStateX(x, y - i);
+				pxmy &= getStateX(x + i, y - i);
+				if (pxy) dx++;
+				if (mxy) dx++;
+				if (xmy) dy++;
+				if (xpy) dy++;
+				if (pxpy) dxy++;
+				if (mxmy) dxy++;
+				if (pxmy) dmxy++;
+				if (mxpy) dmxy++;
+			}
+		} else {
 		for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
-			pxy &= (getState(x + i, y) == cur);
-			pxpy &= (getState(x + i, y + i) == cur);
-			xpy &= (getState(x, y + i) == cur);
-			mxpy &= (getState(x - i, y + i) == cur);
-			mxy &= (getState(x - i, y) == cur);
-			mxmy &= (getState(x - i, y - i) == cur);
-			xmy &= (getState(x, y - i) == cur);
-			pxmy &= (getState(x + i, y - i) == cur);
-			if (pxy) dx++;
-			if (mxy) dx++;
-			if (xmy) dy++;
-			if (xpy) dy++;
-			if (pxpy) dxy++;
-			if (mxmy) dxy++;
-			if (pxmy) dmxy++;
-			if (mxpy) dmxy++;
-		}
+				pxy &= getStateO(x + i, y);
+				pxpy &= getStateO(x + i, y + i);
+				xpy &= getStateO(x, y + i);
+				mxpy &= getStateO(x - i, y + i);
+				mxy &= getStateO(x - i, y);
+				mxmy &= getStateO(x - i, y - i);
+				xmy &= getStateO(x, y - i);
+				pxmy &= getStateO(x + i, y - i);
+				if (pxy) dx++;
+				if (mxy) dx++;
+				if (xmy) dy++;
+				if (xpy) dy++;
+				if (pxpy) dxy++;
+				if (mxmy) dxy++;
+				if (pxmy) dmxy++;
+				if (mxpy) dmxy++;
+			}}
 		return max(max(dx,dy), max(dxy, dmxy));
 	}
 	unsigned evalPointB(signed x, signed y) noexcept{
@@ -336,11 +361,11 @@ public:
 	inline bool checkEndgame(int x, int y) noexcept{return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
 	size_t hash() {
-		size_t a = std::hash<bitset<W*H>>()(stateX);
-		size_t b = std::hash<bitset<W*H>>()(stateO);
-		size_t A = a >= 0 ? 2 * a : -2 * a - 1;
-		size_t B = b >= 0 ? 2 * b : -2 * b - 1;
-		size_t C = (A >= B ? A * A + A + B : A + B * B) / 2;
+		long long a = std::hash<bitset<W*H>>()(stateX);
+		long long b = std::hash<bitset<W*H>>()(stateO);
+		long long A = a >= 0 ? 2 * a : -2 * a - 1;
+		long long B = b >= 0 ? 2 * b : -2 * b - 1;
+		long long C = (A >= B ? A * A + A + B : A + B * B) / 2;
 		return a < 0 && b < 0 || a >= 0 && b >= 0 ? C : -C - 1;
 	}
 
@@ -443,7 +468,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 			}
 		}*/
 		for (pair<int, int> pos : poss) {
-			Board<W, H> b2 = *b;
+			Board<W, H> b2 = std::move(b1);
 			unsigned i = pos.first, j = pos.second;
 			b2.setState(b2.player, i, j);
 			if (b2.checkEndgame(i, j)) {
@@ -487,7 +512,7 @@ template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b
 			return abs((signed)b1.neighbourCount(p1.first, p1.second) - N) < abs((signed)b1.neighbourCount(p2.first, p2.second) - N);//mid
 		});
 		for (pair<int, int> pos : poss) {
-			Board<W, H> b2 = *b;
+			Board<W, H> b2 = std::move(b1);
 			unsigned i = pos.first, j = pos.second;
 			b2.setState(b2.player, i, j);
 			if (b2.checkEndgame(i, j)) {
