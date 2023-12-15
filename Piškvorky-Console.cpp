@@ -440,7 +440,7 @@ private:
 	pair<int, int> center;
 };
 
-template<size_t W, size_t H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
+template<unsigned W, unsigned H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
 	Board<W,H> b1 = *b;
 	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
 	if (b1.player == X) {
