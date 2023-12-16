@@ -20,7 +20,7 @@
 constexpr int MM_DEPTH = 5;//5 doesn't work; 6 is slow => 4
 //odd loses in midgame; even loses in earlygame but is accurate in midgame
 constexpr int N = 2;
-constexpr unsigned PIECES_FOR_WIN = 5;
+constexpr int PIECES_FOR_WIN = 5;
 
 using namespace std;
 
@@ -66,7 +66,7 @@ array<pair<int, int>,8> neighbours(int x, int y) noexcept{
 	return { pair(x-1,y-1),{x,y-1},{x+1,y-1},{x-1,y},{x+1,y},{x-1,y+1},{x,y+1},{x+1,y+1} };
 }
 
-template<unsigned W, unsigned H> class Board {
+template<int W, int H> class Board {
 public:
 	BoardState player;
 
@@ -193,7 +193,7 @@ public:
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
 		if (cur == X) {
-			for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			for (int i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 				pxy &= getStateX(x + i, y);
 				pxpy &= getStateX(x + i, y + i);
 				xpy &= getStateX(x, y + i);
@@ -212,7 +212,7 @@ public:
 				if (mxpy) dmxy++;
 			}
 		} else {
-		for (unsigned i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			for (int i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 				pxy &= getStateO(x + i, y);
 				pxpy &= getStateO(x + i, y + i);
 				xpy &= getStateO(x, y + i);
@@ -237,7 +237,7 @@ public:
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 0, dy = 0, dxy = 0, dmxy = 0;
 		if (cur == X) {
-			for (signed i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			for (int i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 				if (x + i >= W || y + i >= H || x - i < 0 || y - i < 0)break;
 				pxy &=  stateX[x + i+ (y    )*W];
 				pxpy &= stateX[x + i+ (y + i)*W];
@@ -257,7 +257,7 @@ public:
 				dmxy += mxpy;
 			}
 		}else if(cur==O){
-			for (signed i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
+			for (int i = 1; i < PIECES_FOR_WIN; i++) {//px = ->; py = v
 				if (x + i >= W || y + i >= H || x - i < 0 || y - i < 0)break;
 				pxy &=  stateO[x + i+ (y)*W];
 				pxpy &= stateO[x + i+ (y + i) * W];
@@ -440,7 +440,7 @@ private:
 	pair<int, int> center;
 };
 
-template<unsigned W, unsigned H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
+template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
 	Board<W,H> b1 = *b;
 	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
 	if (b1.player == X) {
