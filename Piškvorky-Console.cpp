@@ -5,6 +5,7 @@
 #include <functional>
 #include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <fstream>
 #include <sstream>
 #include <bitset>
@@ -26,8 +27,9 @@ using namespace std;
 
 // 
 // perf = long game until win
-// perf 5                       2000  ms
-// perf 6                       22000 ms
+// perf 4                       7800  ms
+// perf 5                       580000 ms
+// perf 6                       long
 // 
 // 
 // one-move win =               ~10 ms
@@ -42,8 +44,7 @@ enum BoardState {
 	NONE, X, O, BORDER
 };
 
-BoardState n(BoardState a) noexcept{
-	if (a != X && a != O) printf("FATAL: Unknown player\n");
+BoardState n(BoardState a)noexcept{
 	return (a == X) ? O : X;
 }
 
@@ -95,7 +96,7 @@ public:
 		return stateO[x + y * W];
 	}
 
-	bool setState(BoardState s, int x, int y) noexcept{
+	bool setState(BoardState s, int x, int y)noexcept{
 		if (getState(x,y) == NONE) {
 			if (s == X) {
 				stateX[x + y * W] = 1;
@@ -149,10 +150,10 @@ public:
 		}
 	}
 
-	inline pair<int, int> getCenter() noexcept{ return center; }
+	inline pair<int, int> getCenter() { return center; }
 	inline void setCenter(pair<int, int> c) noexcept{ center = c; }
 
-	string window(unsigned w, unsigned h) noexcept{
+	string window(unsigned w, unsigned h){
 		int x = center.first - w/2;
 		int y = center.second - h/2;
 		string ret = "";
@@ -184,11 +185,21 @@ public:
 			}
 			ret.append("\n");
 		}
+		ret.append("    0 1 2 3 4 5 6 7 8 9 1011121314\n");
+		for (unsigned i = 0; i < W; i++) {
+			snprintf(str, 5, "%3d", i);
+			ret.append(str);
+			for (unsigned j = 0; j < H; j++) {
+				snprintf(str, 5, "%2d", evalP[i+j*W]);
+				ret.append(str);
+			}
+			ret.append("\n");
+		}
 		delete[] str;
 		return ret;
 	}
 
-	unsigned evalPoint(unsigned x, unsigned y) noexcept {
+	unsigned evalPoint(unsigned x, unsigned y) {
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 1, dy = 1, dxy = 1, dmxy = 1;
@@ -232,7 +243,7 @@ public:
 			}}
 		return max(max(dx,dy), max(dxy, dmxy));
 	}
-	unsigned evalPointB(signed x, signed y) noexcept{
+	unsigned evalPointB(signed x, signed y) {
 		BoardState cur = getState(x,y);
 		bool pxy = true, pxpy = true, xpy = true, mxpy = true, mxy = true, mxmy = true, xmy = true, pxmy = true;
 		unsigned dx = 0, dy = 0, dxy = 0, dmxy = 0;
@@ -277,23 +288,7 @@ public:
 				dmxy += mxpy;
 			}
 		}
-		return dx+dy+dxy+dmxy;
-	}
-	//Black(X) = + ; White(O) = -
-	/*signed evalPointB1(unsigned x, unsigned y) {
-		switch (getState(x,y)){
-		case NONE:
-			return 0;
-		case X:
-			return evalPointB(x, y);
-		case O:
-			return -(signed)evalPointB(x, y);
-		default:
-			throw exception();
-		}
-	}*/
-	inline signed evalPointC1(unsigned x, unsigned y) {
-		return evalP[x+y*W];
+		return 1+dx+dy+dxy+dmxy;
 	}
 	/*
 		. . ? . . .
@@ -329,36 +324,28 @@ public:
 		return ends;
 	}
 
-	signed evalBoard() {//std::accumulate??
-		signed score = 0;
-		for (unsigned i = 0; i < W; i++) {
-			for (unsigned j = 0; j < H; j++){
-				score += evalPointC1(i, j);
-			}
-		}
+	signed evalBoard() {
+		//score = accumulate(evalP.begin(), evalP.end(), 0,plus<int>());
 		//score = stateX.count() - stateO.count();
-		return score;
+		auto first = evalP.begin();
+		auto last = evalP.end();
+		int init = 0;
+		for (int i = 0; first != last; ++first){
+			init += (stateX[i] || stateO[i]) ? *first : 0;
+			i++;
+		}
+		return init;
 	}
 
-	bool hasNeighbour(int x, int y) noexcept{
+	inline bool hasNeighbour(int x, int y){
 		return hasNbour[x + y * W];
 	}
-	bool hasNeighbour(int x, int y, BoardState s) noexcept{
-		if (getState(x - 1, y) == s || getState(x + 1, y) == s ||
-			getState(x, y - 1) == s || getState(x, y + 1) == s ||
-			getState(x - 1, y + 1) == s || getState(x + 1, y + 1) == s ||
-			getState(x - 1, y - 1) == s || getState(x + 1, y - 1) == s) {
-			return true;
-		}
-		return false;
-	}
 	
-	inline unsigned neighbourCount(int x, int y) {
+	inline unsigned neighbourCount(int x, int y){
 		return neighbourC[x + y * W];
 	}
 
-	inline bool checkX(int x, int y, unsigned a) noexcept{return evalPoint(x, y) >= a;}
-	inline bool checkEndgame(int x, int y) noexcept{return evalPoint(x, y) >= PIECES_FOR_WIN;}
+	inline bool checkEndgame(int x, int y){return evalPoint(x, y) >= PIECES_FOR_WIN;}
 
 	size_t hash() {
 		long long a = std::hash<bitset<W*H>>()(stateX);
@@ -369,7 +356,7 @@ public:
 		return a < 0 && b < 0 || a >= 0 && b >= 0 ? C : -C - 1;
 	}
 
-	string serialize() noexcept{
+	string serialize(){
 		string ret = "";
 		ret.append("PISQ 1\n");
 		if (moves.empty()) { printf("No moves were made. Cannot serialize the board.\n");return ret; }
@@ -387,7 +374,7 @@ public:
 		ret.append("\n");
 		return ret;
 	}
-	void deserialize(ifstream& in) noexcept{
+	void deserialize(ifstream& in){
 		if (moves.size() >= 1) { printf("Game already started! Please restart.\n"); return; }
 
 		int version = 0;
@@ -427,7 +414,7 @@ public:
 		}
 	}
 
-	inline vector<pair<int, int>> getMoves() noexcept{return moves;}
+	inline vector<pair<int, int>> getMoves() {return moves;}
 
 private:
 	bitset<W*H> stateX;
@@ -440,7 +427,7 @@ private:
 	pair<int, int> center;
 };
 
-template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) noexcept {
+template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) {
 	Board<W,H> b1 = *b;
 	if (depth <= 0) { return { b1.evalBoard(), { -1,-1 } }; }
 	if (b1.player == X) {
