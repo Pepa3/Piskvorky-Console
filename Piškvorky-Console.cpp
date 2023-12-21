@@ -18,7 +18,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 6;//5 doesn't work; 6 is slow => 4
+constexpr int MM_DEPTH = 7;//5 doesn't work; 7 is slow => 4
 //odd loses in midgame; even loses in earlygame but is accurate in midgame
 constexpr int N = 2;
 constexpr int PIECES_FOR_WIN = 5;
@@ -97,6 +97,7 @@ public:
 
 	bool setState(BoardState s, int x, int y, bool isPlayer)noexcept{
 		if (getState(x,y) == NONE) {
+			//hasNbour[x+y*W] = false; TODO:
 			if (s == X) {
 				stateX[x + y * W] = 1;
 				evalP[x + y * W] = evalPointB(x, y);
