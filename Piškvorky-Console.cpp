@@ -18,7 +18,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 5;//5 doesn't work; 6 is slow => 4
+constexpr int MM_DEPTH = 4;//5 doesn't work; 6 is slow => 4
 //odd loses in midgame; even loses in earlygame but is accurate in midgame
 constexpr int N = 2;
 constexpr int PIECES_FOR_WIN = 5;
@@ -78,7 +78,6 @@ public:
 		neighbourC = {0};
 		evalP = {0};
 		moves = vector<pair<int,int>>();
-		center = {W/2, H/2};
 		player = BoardState(1);
 		positions = unordered_map<size_t, bool>();
 	}
@@ -150,20 +149,15 @@ public:
 		}
 	}
 
-	inline pair<int, int> getCenter() { return center; }
-	inline void setCenter(pair<int, int> c) noexcept{ center = c; }
-
-	string window(unsigned w, unsigned h){
-		int x = center.first - w/2;
-		int y = center.second - h/2;
+	string window(){
 		string ret = "";
 		ret.append("    0 1 2 3 4 5 6 7 8 9 1011121314\n");
 		char* str = new char[5];
-		for (unsigned i = 0; i < w; i++) {
+		for (unsigned i = 0; i < W; i++) {
 			snprintf(str,5,"%3d ", i);
 			ret.append(str);
-			for (unsigned j = 0; j < h; j++) {
-				ret.append({ s2c(getState(x+i,y+j))});
+			for (unsigned j = 0; j < H; j++) {
+				ret.append({ s2c(getState(i,j))});
 				ret.append(" ");
 			}
 			ret.append("\n");
@@ -424,7 +418,6 @@ private:
 	array<unsigned, W*H> neighbourC;
 	array<signed, W*H> evalP;
 	vector<pair<int, int>> moves;
-	pair<int, int> center;
 };
 
 template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, signed depth, signed alpha, signed beta) {
@@ -542,7 +535,7 @@ int main() {
 	bool endgame = false;
 	while(!endgame) {
 		printf("Player %cs turn\n", s2c(board.player));
-		cout << board.window(ww, wh);
+		cout << board.window();
 		printf("Score: %d\n", board.evalBoard());
 		printf("Enter position('Y X'): ");
 		getline(cin, in);
@@ -558,7 +551,7 @@ int main() {
 		}else if (in.compare("botm") == 0) {
 			pair<bool, pair<int, int>> result = minimax(&board, MM_DEPTH, -2560, 2560);
 
-			a = result.second.first;//TODO: fix if windowing implemented
+			a = result.second.first;
 			b = result.second.second;
 			goto skip;//...
 		}
@@ -603,18 +596,16 @@ int main() {
 			continue;
 		}
 		skip:
-		int x = board.getCenter().first - ww / 2;
-		int y = board.getCenter().second - wh / 2;
-		if (x + a >= ww || y + b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
-		if (!board.setState(board.player, x + a, y + b)) {
-			//auto tmp = board.evalLineBlocked(x + a, y + b,false);
+		if (a >= ww || b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
+		if (!board.setState(board.player, a, b)) {
+			//auto tmp = board.evalLineBlocked(a, b,false);
 			//if (tmp.first) printf("Line output: %d %d\n", tmp.second.first, tmp.second.second);
 			printf("Position already has a piece!\n");
 			continue;
 		}
-		if (board.checkEndgame(x+a,y+b)) {
+		if (board.checkEndgame(a,b)) {
 			printf("Player %c wins!\n",s2c(board.player));
-			cout << board.window(ww, wh);
+			cout << board.window();
 			break;
 		}
 		board.player = n(board.player);
