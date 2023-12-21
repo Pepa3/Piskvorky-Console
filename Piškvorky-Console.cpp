@@ -18,7 +18,7 @@
 #include <array>
 #include <list>
 //#include <format>
-constexpr int MM_DEPTH = 4;//5 doesn't work; 6 is slow => 4
+constexpr int MM_DEPTH = 6;//5 doesn't work; 6 is slow => 4
 //odd loses in midgame; even loses in earlygame but is accurate in midgame
 constexpr int N = 2;
 constexpr int PIECES_FOR_WIN = 5;
@@ -27,8 +27,8 @@ using namespace std;
 
 // 
 // perf = long game until win
-// perf 4                       7800  ms
-// perf 5                       580000 ms
+// perf 4                       2600  ms
+// perf 5                       140000 ms
 // perf 6                       long
 // 
 // 
@@ -95,7 +95,7 @@ public:
 		return stateO[x + y * W];
 	}
 
-	bool setState(BoardState s, int x, int y)noexcept{
+	bool setState(BoardState s, int x, int y, bool isPlayer)noexcept{
 		if (getState(x,y) == NONE) {
 			if (s == X) {
 				stateX[x + y * W] = 1;
@@ -126,7 +126,7 @@ public:
 					f((x + i), (y - i));
 				}
 			}
-			moves.push_back({ x, y });
+			if(isPlayer)moves.push_back({ x, y });
 			//positions[hash()] = true;//TODO: add debug output
 			for (auto& pos : neighbours(x, y)) {
 				if (getState(pos.first, pos.second) != BORDER) {//Cannot use neighbourC>0 as hasNbour because its slower
@@ -134,7 +134,7 @@ public:
 					hasNbour[pos.first + pos.second * W] = true;
 				}
 			}
-			auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; hasNbour[a + b * W]=true; };
+			/*auto f = [&](int a, int b) -> void { if (a >= W || b >= H || a < 0 || b < 0)return; hasNbour[a + b * W] = true; };
 			f((x - 2) , (y    ));
 			f((x + 2) , (y    ));
 			f((x    ) , (y - 2));
@@ -142,7 +142,7 @@ public:
 			f((x - 2) , (y + 2));
 			f((x + 2) , (y + 2));
 			f((x - 2) , (y - 2));
-			f((x + 2) , (y - 2));
+			f((x + 2) , (y - 2));*/
 			return true;
 		} else {
 			return false;
@@ -393,7 +393,7 @@ public:
 			if (!(str >> a >> b)) break;
 			int x = stoi(a), y = stoi(b);
 			moves.push_back({ x,y });
-			setState(player, x, y);
+			setState(player, x, y, true);
 			player = n(player);
 		}
 		for (unsigned i = 0; i < W; i++) {
@@ -450,7 +450,7 @@ template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, sign
 		for (pair<int, int> pos : poss) {
 			Board<W, H> b2 = std::move(b1);
 			unsigned i = pos.first, j = pos.second;
-			b2.setState(b2.player, i, j);
+			b2.setState(b2.player, i, j, false);
 			if (b2.checkEndgame(i, j)) {
 				best = { i,j };
 				return { -score, best };
@@ -462,7 +462,7 @@ template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, sign
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
-			b2.setState(b2.player, i, j);
+			b2.setState(b2.player, i, j, false);
 			if (b2.checkEndgame(i, j)) { score = 2561; goto minimax_skip_1; }
 			b2.player = n(b2.player);
 			temp = minimax(&b2, depth - 1, alpha, beta);
@@ -494,7 +494,7 @@ template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, sign
 		for (pair<int, int> pos : poss) {
 			Board<W, H> b2 = std::move(b1);
 			unsigned i = pos.first, j = pos.second;
-			b2.setState(b2.player, i, j);
+			b2.setState(b2.player, i, j, false);
 			if (b2.checkEndgame(i, j)) {
 				best = { i,j };
 				return { -score, best };
@@ -506,7 +506,7 @@ template<int W, int H> pair<signed, pair<int, int>> minimax(Board<W, H>* b, sign
 			pair<signed,pair<int,int>> temp;
 			Board<W,H> b2 = *b;
 			unsigned i = pos.first, j = pos.second;
-			b2.setState(b2.player, i, j);
+			b2.setState(b2.player, i, j, false);
 			if (b2.checkEndgame(i, j)) { score = -2561; goto minimax_skip_2; }
 			b2.player = n(b2.player);
 			temp = minimax(&b2, depth - 1, alpha, beta);
@@ -597,7 +597,7 @@ int main() {
 		}
 		skip:
 		if (a >= ww || b >= wh) { printf("Position %d %d doesn't exist\n",a,b); continue; }
-		if (!board.setState(board.player, a, b)) {
+		if (!board.setState(board.player, a, b, true)) {
 			//auto tmp = board.evalLineBlocked(a, b,false);
 			//if (tmp.first) printf("Line output: %d %d\n", tmp.second.first, tmp.second.second);
 			printf("Position already has a piece!\n");

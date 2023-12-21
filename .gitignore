@@ -367,8 +367,8 @@ games/*.txt
 
 #All pisq files
 *.pisq
-#except th perftest ones
-!perftest*.pisq
+#except the perftest ones
+!perftest.pisq
 
 #Linux
 Piškvorky-Console
