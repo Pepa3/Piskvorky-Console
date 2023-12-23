@@ -566,6 +566,7 @@ int main() {
 			minimax(b1, MM_DEPTH, -2560, 2560);
 			auto t2 = chrono::high_resolution_clock::now();
 			cout << "bot takes " << chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
+			delete b1;
 			continue;
 		}else if (in.compare("test") == 0) {
 		}
